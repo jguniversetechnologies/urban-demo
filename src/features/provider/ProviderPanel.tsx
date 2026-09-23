@@ -1,3 +1,5 @@
+"use client"
+
 import { useEffect, useState } from "react"
 import {
   BadgeCheck,
@@ -13,7 +15,9 @@ import {
 } from "lucide-react"
 import { Logo } from "@/components/AppChrome"
 import { formatRupees, materialExtras } from "@/data/market"
+import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
+import { useProviderState } from "@/features/provider/ProviderState"
 import type { Screen } from "@/types/navigation"
 
 function Countdown({
@@ -41,44 +45,25 @@ function Countdown({
   )
 }
 
-export default function ProviderPanel({
-  screen,
-  go,
-}: {
-  screen: Screen
-  go: (s: Screen) => void
-}) {
+export default function ProviderPanel({ screen }: { screen: Screen }) {
   const demo = useDemo()
-  const [online, setOnline] = useState(true)
-  const [startCode, setStartCode] = useState("")
-  const [startError, setStartError] = useState("")
+  const go = useGo()
+  const {
+    online,
+    setOnline,
+    startCode,
+    setStartCode,
+    startError,
+    setStartError,
+    pendingJobs,
+    rejectJob,
+    jobStatus,
+    setJobStatus,
+    documents,
+    setDocument,
+  } = useProviderState()
   const suspended = demo.suspended.includes("Ravi Kumar")
   const live = demo.booking
-  const [pendingJobs, setPendingJobs] = useState([
-    {
-      name: "Home deep cleaning",
-      amount: "₹1,299",
-      distance: "1.2 km",
-      time: "10:00 AM",
-    },
-    {
-      name: "Kitchen cleaning",
-      amount: "₹699",
-      distance: "2.2 km",
-      time: "11:00 AM",
-    },
-    {
-      name: "Bathroom cleaning",
-      amount: "₹449",
-      distance: "3.2 km",
-      time: "12:00 PM",
-    },
-  ])
-  const [jobStatus, setJobStatus] =
-    useState<"accepted" | "way" | "started" | "completed">("accepted")
-  const [documents, setDocuments] = useState<Record<string, string>>({
-    "Government ID": "aadhaar-card.pdf",
-  })
   const tabs = [
     ["provider", LayoutDashboard, "Home"],
     ["requests", Bell, "Requests"],
@@ -151,20 +136,14 @@ export default function ProviderPanel({
               </p>
               <div className="mt-4 flex gap-2">
                 <button
-                  onClick={() =>
-                    setPendingJobs((current) =>
-                      current.filter((item) => item.name !== job.name),
-                    )
-                  }
+                  onClick={() => rejectJob(job.name)}
                   className="secondary-btn h-10 flex-1 text-xs"
                 >
                   Reject
                 </button>
                 <button
                   onClick={() => {
-                    setPendingJobs((current) =>
-                      current.filter((item) => item.name !== job.name),
-                    )
+                    rejectJob(job.name)
                     setJobStatus("accepted")
                     go("active")
                   }}
@@ -427,11 +406,7 @@ export default function ProviderPanel({
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file)
-                      setDocuments((current) => ({
-                        ...current,
-                        [x]: file.name,
-                      }))
+                    if (file) setDocument(x, file.name)
                   }}
                 />
               </label>

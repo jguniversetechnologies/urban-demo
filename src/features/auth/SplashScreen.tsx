@@ -1,8 +1,13 @@
+"use client"
+
 import { ArrowRight } from "lucide-react"
 import { Logo } from "@/components/AppChrome"
-import type { Screen } from "@/types/navigation"
+import { useGo } from "@/navigation/useGo"
+import { useDemo } from "@/state/DemoState"
 
-export default function SplashScreen({ go }: { go: (s: Screen) => void }) {
+export default function SplashScreen() {
+  const go = useGo()
+  const demo = useDemo()
   return (
     <div className="screen splash-screen justify-between overflow-hidden px-8 pb-10 pt-12">
       <div className="pointer-events-none absolute -right-16 top-24 h-48 w-48 rounded-full bg-white/10" />
@@ -24,7 +29,10 @@ export default function SplashScreen({ go }: { go: (s: Screen) => void }) {
       </div>
       <button
         className="relative flex h-[52px] w-full items-center justify-center gap-2 rounded-[13px] bg-white text-sm font-bold text-teal-800 shadow-lg"
-        onClick={() => go("login")}
+        onClick={() => {
+          demo.setRole("customer")
+          go("login")
+        }}
       >
         Get started <ArrowRight size={18} />
       </button>

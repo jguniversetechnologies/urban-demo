@@ -1,4 +1,7 @@
+"use client"
+
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   CalendarDays,
   ChevronRight,
@@ -7,18 +10,25 @@ import {
   WalletCards,
 } from "lucide-react"
 import { BottomNav, Header } from "@/components/AppChrome"
+import { findService } from "@/data/services"
+import { profilePath, servicePath } from "@/lib/paths"
+import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
-import type { Screen } from "@/types/navigation"
 
-export function Profile({
-  go,
-  onBookAgain,
-}: {
-  go: (s: Screen) => void
-  onBookAgain: (name: string) => void
-}) {
+export function Profile({ panel = "" }: { panel?: string }) {
   const demo = useDemo()
-  const [panel, setPanel] = useState("")
+  const go = useGo()
+  const router = useRouter()
+  const onBookAgain = (name: string) => {
+    const match = findService(name)
+    if (!match) {
+      router.push("/services/cleaning")
+      return
+    }
+    demo.setActiveCategory(match.category)
+    demo.setSelection(match)
+    router.push(servicePath(match.category, match.name))
+  }
   const detail =
     panel === "Booking history" ? (
       <>
@@ -106,7 +116,7 @@ export function Profile({
     <div className="screen">
       <Header
         title={panel || "Profile"}
-        onBack={() => (panel ? setPanel("") : go("home"))}
+        onBack={() => (panel ? router.push("/profile") : go("home"))}
       />
       <main className="flex-1 overflow-y-auto px-5 pb-24">
         {!panel && (
@@ -130,7 +140,7 @@ export function Profile({
               const C = I as typeof CalendarDays
               return (
                 <button
-                  onClick={() => setPanel(x as string)}
+                  onClick={() => router.push(profilePath(x as string))}
                   key={x as string}
                   className="flex w-full items-center gap-3 border-b border-slate-100 py-4 text-sm font-semibold"
                 >
@@ -153,7 +163,7 @@ export function Profile({
         )}
         {detail}
       </main>
-      <BottomNav active="profile" go={go} />
+      <BottomNav active="profile" />
     </div>
   )
 }

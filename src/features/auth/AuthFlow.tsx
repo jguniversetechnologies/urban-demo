@@ -1,28 +1,45 @@
+"use client"
+
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { ArrowRight, Phone } from "lucide-react"
 import { Header, Logo } from "@/components/AppChrome"
 import { serviceImage } from "@/data/services"
-import type { Mode, Screen } from "@/types/navigation"
+import { useContinue, useGo } from "@/navigation/useGo"
+import { useDemo } from "@/state/DemoState"
+import type { Screen } from "@/types/navigation"
 
-export default function AuthFlow({
-  screen,
-  mode,
-  go,
-  onVerified,
-  onSkip,
-}: {
-  screen: Screen
-  mode: Mode
-  go: (s: Screen) => void
-  onVerified: (phone: string) => void
-  onSkip?: () => void
-}) {
-  const [phone, setPhone] = useState("")
+export default function AuthFlow({ screen }: { screen: Screen }) {
+  const demo = useDemo()
+  const go = useGo()
+  const router = useRouter()
+  const continueAfterAuth = useContinue()
+  const mode = demo.role === "provider" ? "provider" : "customer"
   const [otp, setOtp] = useState("")
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
   const [error, setError] = useState("")
+  const phone = demo.authDraft.phone
+  const name = demo.authDraft.name
+  const email = demo.authDraft.email
   const cleanPhone = phone.replace(/\D/g, "")
+  const setPhone = (value: string) => demo.patchAuthDraft({ phone: value })
+  const setName = (value: string) => demo.patchAuthDraft({ name: value })
+  const setEmail = (value: string) => demo.patchAuthDraft({ email: value })
+  const finishAuth = (verifiedPhone: string) => {
+    if (mode === "provider") {
+      router.push("/provider")
+      return
+    }
+    demo.signInCustomer(verifiedPhone)
+    if (!demo.city) {
+      router.push("/location")
+      return
+    }
+    continueAfterAuth()
+  }
+  const skip = () => {
+    demo.setPendingPath(null)
+    router.push(demo.city ? "/home" : "/location")
+  }
   const continueLogin = () => {
     if (cleanPhone.length !== 10) {
       setError("Enter a valid 10-digit mobile number.")
@@ -37,7 +54,7 @@ export default function AuthFlow({
       return
     }
     setError("")
-    onVerified(cleanPhone)
+    finishAuth(cleanPhone)
   }
   const createAccount = () => {
     if (name.trim().length < 2) {
@@ -222,7 +239,7 @@ export default function AuthFlow({
               Create a new account
             </button>
             <button
-              onClick={onSkip}
+              onClick={skip}
               className="mt-4 text-sm font-bold text-teal-700"
             >
               Skip for now

@@ -1,6 +1,8 @@
+"use client"
+
 import type { ReactNode } from "react"
 import { ArrowLeft, CalendarDays, Home, Store, UserRound } from "lucide-react"
-import type { Screen } from "@/types/navigation"
+import { useGo } from "@/navigation/useGo"
 
 export function Logo({
   compact = false,
@@ -70,13 +72,8 @@ export function Header({
   )
 }
 
-export function BottomNav({
-  active,
-  go,
-}: {
-  active: string
-  go: (s: Screen) => void
-}) {
+export function BottomNav({ active }: { active: string }) {
+  const go = useGo()
   const items = [
     ["home", Home, "Home"],
     ["services", Store, "Services"],

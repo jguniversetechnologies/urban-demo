@@ -1,4 +1,7 @@
+"use client"
+
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   BadgeCheck,
   Bell,
@@ -11,19 +14,24 @@ import {
 import { BottomNav } from "@/components/AppChrome"
 import { promoBanners } from "@/data/market"
 import { categories, searchServices } from "@/data/services"
+import { categoryPath, servicePath } from "@/lib/paths"
+import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
-import type { Screen, ServiceItem } from "@/types/navigation"
+import type { ServiceItem } from "@/types/navigation"
 
-export function HomeScreen({
-  go,
-  openService,
-  openDetail,
-}: {
-  go: (s: Screen) => void
-  openService: (category: string) => void
-  openDetail: (service: ServiceItem, category: string) => void
-}) {
+export function HomeScreen() {
   const demo = useDemo()
+  const go = useGo()
+  const router = useRouter()
+  const openService = (category: string) => {
+    demo.setActiveCategory(category)
+    router.push(categoryPath(category))
+  }
+  const openDetail = (service: ServiceItem, category: string) => {
+    demo.setActiveCategory(category)
+    demo.setSelection({ ...service, category })
+    router.push(servicePath(category, service.name))
+  }
   const [query, setQuery] = useState("")
   const results = searchServices(query).filter((item) =>
     demo.city ? demo.categoryLive(demo.city, item.category) : true,
@@ -213,7 +221,7 @@ export function HomeScreen({
           </>
         )}
       </main>
-      <BottomNav active="home" go={go} />
+      <BottomNav active="home" />
     </div>
   )
 }

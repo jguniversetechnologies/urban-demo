@@ -1,5 +1,8 @@
+"use client"
+
 import { useState } from "react"
 import type { FormEvent } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,8 +20,8 @@ import {
 import { Logo } from "@/components/AppChrome"
 import { cities } from "@/data/market"
 import { categories } from "@/data/services"
+import { adminPageFromPath, adminPath } from "@/lib/paths"
 import { useDemo } from "@/state/DemoState"
-import type { Mode } from "@/types/navigation"
 
 function AdminLogin({
   onLogin,
@@ -138,21 +141,15 @@ function AdminLogin({
   )
 }
 
-export default function AdminPanel({
-  setMode,
-  authenticated,
-  onAuthenticate,
-  onSignOut,
-}: {
-  setMode: (m: Mode) => void
-  authenticated: boolean
-  onAuthenticate: () => void
-  onSignOut: () => void
-}) {
+export default function AdminPanel() {
   const demo = useDemo()
-  const [page, setPage] = useState("Dashboard")
+  const router = useRouter()
+  const pathname = usePathname()
+  const page = adminPageFromPath(pathname)
   const [notice, setNotice] = useState("")
-  const [adminCity, setAdminCity] = useState("Bengaluru")
+  const adminCity = demo.adminCity
+  const setAdminCity = demo.setAdminCity
+  const setPage = (next: string) => router.push(adminPath(next))
   const pages = [
     ["Dashboard", LayoutDashboard],
     ["Providers", Users],
@@ -160,9 +157,15 @@ export default function AdminPanel({
     ["Bookings", CalendarDays],
     ["Commission", CircleDollarSign],
   ]
-  if (!authenticated)
+  if (!demo.adminAuthenticated)
     return (
-      <AdminLogin onLogin={onAuthenticate} onExit={() => setMode("customer")} />
+      <AdminLogin
+        onLogin={demo.authenticateAdmin}
+        onExit={() => {
+          demo.setRole("customer")
+          router.push("/")
+        }}
+      />
     )
   const providerRows = [
     ["Ravi Kumar", "Cleaning", "Aadhaar + PAN"],
@@ -469,13 +472,17 @@ export default function AdminPanel({
         })}
         <div className="mt-auto space-y-4">
           <button
-            onClick={() => setMode("customer")}
+            onClick={() => {
+              demo.signOutAdmin()
+              demo.setRole("customer")
+              router.push("/")
+            }}
             className="flex items-center gap-2 px-3 text-sm font-semibold text-slate-400"
           >
             <ArrowLeft size={16} /> Exit dashboard
           </button>
           <button
-            onClick={onSignOut}
+            onClick={demo.signOutAdmin}
             className="flex items-center gap-2 px-3 text-sm font-semibold text-rose-500"
           >
             <X size={16} /> Sign out

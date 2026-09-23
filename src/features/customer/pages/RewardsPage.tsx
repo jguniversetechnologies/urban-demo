@@ -1,10 +1,13 @@
+"use client"
+
 import { Gift } from "lucide-react"
 import { Header } from "@/components/AppChrome"
 import { rewardOffers } from "@/data/market"
+import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
-import type { Screen } from "@/types/navigation"
 
-export function RewardsPage({ go }: { go: (s: Screen) => void }) {
+export function RewardsPage() {
+  const go = useGo()
   const { rewardPoints } = useDemo()
   return (
     <div className="screen">

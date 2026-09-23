@@ -1,9 +1,12 @@
+"use client"
+
 import { useState } from "react"
 import { Star } from "lucide-react"
 import { Header } from "@/components/AppChrome"
-import type { Screen } from "@/types/navigation"
+import { useGo } from "@/navigation/useGo"
 
-export function Rating({ go }: { go: (s: Screen) => void }) {
+export function Rating() {
+  const go = useGo()
   const [rated, setRated] = useState(5)
   return (
     <div className="screen">

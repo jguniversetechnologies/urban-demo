@@ -1,5 +1,7 @@
-import App from "@/App"
+"use client"
+
+import SplashScreen from "@/features/auth/SplashScreen"
 
 export default function Page() {
-  return <App />
+  return <SplashScreen />
 }

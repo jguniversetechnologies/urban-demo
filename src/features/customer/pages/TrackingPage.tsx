@@ -1,8 +1,10 @@
+"use client"
+
 import { Check, Phone, Star } from "lucide-react"
 import { BottomNav, Header } from "@/components/AppChrome"
 import { formatRupees } from "@/data/market"
+import { useGo } from "@/navigation/useGo"
 import { useDemo, type JobStatus } from "@/state/DemoState"
-import type { Screen } from "@/types/navigation"
 
 const steps: { status: JobStatus; label: string }[] = [
   { status: "requested", label: "Requested" },
@@ -12,7 +14,8 @@ const steps: { status: JobStatus; label: string }[] = [
   { status: "completed", label: "Completed" },
 ]
 
-export function Tracking({ go }: { go: (s: Screen) => void }) {
+export function Tracking() {
+  const go = useGo()
   const demo = useDemo()
   const booking = demo.booking
   const current = steps.findIndex((step) => step.status === booking?.status)
@@ -135,7 +138,7 @@ export function Tracking({ go }: { go: (s: Screen) => void }) {
           </>
         )}
       </main>
-      <BottomNav active="tracking" go={go} />
+      <BottomNav active="tracking" />
     </div>
   )
 }

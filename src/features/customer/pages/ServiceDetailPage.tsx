@@ -1,4 +1,7 @@
+"use client"
+
 import { useEffect } from "react"
+import { notFound, useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,21 +13,26 @@ import {
 } from "lucide-react"
 import { formatRupees, packagesFor, platformFee } from "@/data/market"
 import { categoryIncludes, serviceImage } from "@/data/services"
+import { serviceFromSlugs, categoryPath } from "@/lib/paths"
+import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
-import type { Screen, ServiceItem } from "@/types/navigation"
 
-export function Detail({
-  go,
-  service,
-  category,
-  onBook,
-}: {
-  go: (s: Screen) => void
-  service: ServiceItem
-  category: string
-  onBook: () => void
-}) {
+export function Detail() {
+  const params = useParams<{ category: string; service: string }>()
+  const match = serviceFromSlugs(params.category, params.service)
   const demo = useDemo()
+  const go = useGo()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!match) return
+    demo.setActiveCategory(match.category)
+    demo.setSelection(match)
+    demo.setPackageChoice(packagesFor(match)[0])
+  }, [match?.category, match?.name])
+
+  if (!match) notFound()
+  const { category, ...service } = match
   const options = packagesFor(service)
   const included = categoryIncludes[category] ?? categoryIncludes.Cleaning
   const selected =
@@ -32,9 +40,6 @@ export function Detail({
   const total = selected.price + platformFee
   const available = !demo.city || demo.categoryLive(demo.city, category)
 
-  useEffect(() => {
-    demo.setPackageChoice(options[0])
-  }, [service.name])
   return (
     <div className="screen">
       <div className="relative h-56 shrink-0">
@@ -44,7 +49,10 @@ export function Detail({
           className="h-full w-full object-cover"
         />
         <button
-          onClick={() => go("services")}
+          onClick={() => {
+            demo.setActiveCategory(category)
+            router.push(categoryPath(category))
+          }}
           className="absolute left-4 top-4 icon-btn bg-white shadow-md"
         >
           <ArrowLeft size={20} />
@@ -141,7 +149,7 @@ export function Detail({
         <button
           className="primary-btn w-44 disabled:opacity-40"
           disabled={!available}
-          onClick={onBook}
+          onClick={() => go("booking")}
         >
           Book now <ArrowRight size={18} />
         </button>

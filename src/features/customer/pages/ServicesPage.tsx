@@ -1,24 +1,33 @@
+"use client"
+
 import { useState } from "react"
+import { useParams, useRouter, notFound } from "next/navigation"
 import { ChevronRight, Search, Star } from "lucide-react"
 import { BottomNav, Header } from "@/components/AppChrome"
 import { categories, serviceCatalog } from "@/data/services"
+import { categoryFromSlug, categoryPath, servicePath } from "@/lib/paths"
+import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
-import type { Screen, ServiceItem } from "@/types/navigation"
 
-export function ServiceList({
-  go,
-  category,
-  selectService,
-  setCategory,
-}: {
-  go: (s: Screen) => void
-  category: string
-  selectService: (item: ServiceItem) => void
-  setCategory: (category: string) => void
-}) {
+export function ServiceList() {
+  const params = useParams<{ category: string }>()
+  const resolved = categoryFromSlug(params.category)
   const demo = useDemo()
+  const go = useGo()
+  const router = useRouter()
   const [query, setQuery] = useState("")
   const [searching, setSearching] = useState(false)
+  if (!resolved) notFound()
+  const category = resolved
+  const setCategory = (next: string) => {
+    demo.setActiveCategory(next)
+    router.push(categoryPath(next))
+  }
+  const selectService = (item: (typeof serviceCatalog)["Cleaning"][number]) => {
+    demo.setActiveCategory(category)
+    demo.setSelection({ ...item, category })
+    router.push(servicePath(category, item.name))
+  }
   const CategoryIcon = categories.find((item) => item.label === category)?.icon
   const list = (serviceCatalog[category] || serviceCatalog.Cleaning).filter(
     (item) => item.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -111,7 +120,7 @@ export function ServiceList({
           ))}
         </div>
       </main>
-      <BottomNav active="services" go={go} />
+      <BottomNav active="services" />
     </div>
   )
 }

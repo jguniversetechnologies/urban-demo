@@ -1,18 +1,16 @@
+"use client"
+
 import { useState } from "react"
 import { MapPin, Navigation } from "lucide-react"
 import { Header } from "@/components/AppChrome"
 import { cities } from "@/data/market"
+import { useContinue, useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
-import type { Screen } from "@/types/navigation"
 
-export function LocationPage({
-  go,
-  onDone,
-}: {
-  go: (s: Screen) => void
-  onDone: () => void
-}) {
+export function LocationPage() {
   const demo = useDemo()
+  const go = useGo()
+  const onDone = useContinue()
   const [city, setCity] = useState(demo.city || "Bengaluru")
   const [area, setArea] = useState(demo.area)
   const areas = cities.find((item) => item.city === city)?.areas ?? []

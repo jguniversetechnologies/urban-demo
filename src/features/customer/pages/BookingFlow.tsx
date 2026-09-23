@@ -1,9 +1,14 @@
-import { useState } from "react"
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Banknote, Check, MapPin, WalletCards } from "lucide-react"
 import { Header } from "@/components/AppChrome"
 import { formatRupees, platformFee } from "@/data/market"
+import { categoryPath } from "@/lib/paths"
+import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
-import type { Screen, ServiceItem } from "@/types/navigation"
+import type { Screen } from "@/types/navigation"
 
 function upcomingDays() {
   return Array.from({ length: 4 }, (_, index) => {
@@ -22,22 +27,35 @@ function upcomingDays() {
   })
 }
 
-export function Booking({
-  screen,
-  go,
-  service,
-  category,
-}: {
-  screen: Screen
-  go: (s: Screen) => void
-  service: ServiceItem
-  category: string
-}) {
+export function Booking({ screen }: { screen: Screen }) {
   const demo = useDemo()
+  const go = useGo()
+  const router = useRouter()
+  const service = demo.selection
+  const category = service?.category ?? demo.activeCategory
+  const [days] = useState(upcomingDays)
+  const dateId = demo.schedule.dateId || days[0].id
+  const selectedDay = days.find((day) => day.id === dateId) ?? days[0]
+  const time = demo.schedule.time
+  const address = demo.schedule.address
+  const payment = demo.schedule.payment
   const basePrice = demo.packageChoice?.price ?? 0
   const packageLabel = demo.packageChoice?.label ?? "Standard"
-  const total = formatRupees(basePrice + platformFee)
+  const total = formatRupees(
+    demo.booking && screen === "confirmed"
+      ? demo.orderTotal(demo.booking)
+      : basePrice + platformFee,
+  )
+  useEffect(() => {
+    if (!demo.ready) return
+    if (screen === "confirmed") {
+      if (!demo.booking) router.replace("/home")
+      return
+    }
+    if (!service) router.replace(categoryPath(category || "Cleaning"))
+  }, [category, demo.booking, demo.ready, router, screen, service])
   const confirmBooking = () => {
+    if (!service) return
     demo.placeBooking({
       serviceName: service.name,
       category,
@@ -50,12 +68,9 @@ export function Booking({
     })
     go("confirmed")
   }
-  const [days] = useState(upcomingDays)
-  const [dateId, setDateId] = useState(days[0].id)
-  const selectedDay = days.find((day) => day.id === dateId) ?? days[0]
-  const [time, setTime] = useState("10:00 AM")
-  const [address, setAddress] = useState("Home")
-  const [payment, setPayment] = useState("online")
+  if (!demo.ready) return null
+  if (screen === "confirmed" && !demo.booking) return null
+  if (screen !== "confirmed" && !service) return null
   if (screen === "confirmed")
     return (
       <div className="screen items-center justify-center px-8 text-center">
@@ -71,7 +86,8 @@ export function Booking({
           Your professional will arrive on
           <br />
           <b className="text-slate-800">
-            {selectedDay.label} at {time}
+            {demo.booking?.dateLabel ?? selectedDay.label} at{" "}
+            {demo.booking?.time ?? time}
           </b>
         </p>
         <div className="mt-8 w-full rounded-2xl bg-slate-50 p-5 text-left">
@@ -107,7 +123,7 @@ export function Booking({
             <p className="text-xs text-slate-400">Total payable</p>
             <p className="mt-1 text-3xl font-extrabold">{total}</p>
             <p className="mt-3 text-xs text-slate-300">
-              {service.name} · {selectedDay.label}, {time}
+              {service?.name} · {selectedDay.label}, {time}
             </p>
           </div>
           <h2 className="section-title mt-7">Choose payment method</h2>
@@ -130,7 +146,11 @@ export function Booking({
               const selected = payment === key
               return (
                 <button
-                  onClick={() => setPayment(key as string)}
+                  onClick={() =>
+                    demo.patchSchedule({
+                      payment: key === "cash" ? "cash" : "online",
+                    })
+                  }
                   key={t as string}
                   className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left ${
                     selected
@@ -173,7 +193,7 @@ export function Booking({
         <div className="mt-4 grid grid-cols-4 gap-2">
           {days.map((day) => (
             <button
-              onClick={() => setDateId(day.id)}
+              onClick={() => demo.patchSchedule({ dateId: day.id })}
               className={`rounded-xl border py-3 ${
                 dateId === day.id
                   ? "border-teal-600 bg-teal-600 text-white"
@@ -199,7 +219,7 @@ export function Booking({
             "5:00 PM",
           ].map((t) => (
             <button
-              onClick={() => setTime(t)}
+              onClick={() => demo.patchSchedule({ time: t })}
               className={`rounded-xl border px-2 py-3 text-xs font-bold ${
                 time === t
                   ? "border-teal-600 bg-teal-50 text-teal-800"
@@ -218,7 +238,7 @@ export function Booking({
             ["Office", "80 Feet Road"],
           ].map(([label, line]) => (
             <button
-              onClick={() => setAddress(label)}
+              onClick={() => demo.patchSchedule({ address: label })}
               key={label}
               className={`flex items-center gap-3 rounded-2xl border p-4 text-left ${
                 address === label
