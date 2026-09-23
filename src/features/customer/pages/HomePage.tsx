@@ -61,8 +61,12 @@ export function HomeScreen() {
           <button
             className="relative grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-700"
             aria-label="Notifications"
+            onClick={() => router.push("/profile/alerts")}
           >
             <Bell size={18} />
+            {demo.notices.some((item) => item.audience === "customer") && (
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
+            )}
           </button>
         </div>
         <label className="mt-4 flex h-12 items-center gap-3 rounded-2xl bg-slate-100 px-4 text-slate-400">

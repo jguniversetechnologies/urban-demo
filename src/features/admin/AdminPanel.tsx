@@ -192,6 +192,31 @@ export default function AdminPanel() {
           </div>
           <span className="status-pill">24 pending</span>
         </div>
+        {demo.provider.phone && (
+          <div className="admin-list-row">
+            <div className="admin-avatar">
+              {(demo.provider.name || "P").slice(0, 2).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <b>{demo.provider.name || "New partner"}</b>
+              <p>
+                +91 {demo.provider.phone} · {demo.provider.skill || "Skill not set"} · KYC {demo.provider.kyc}
+              </p>
+              <p>
+                {Object.entries(demo.provider.documents).map(([doc, file]) => `${doc}: ${file}`).join(" · ") || "No documents yet"}
+              </p>
+            </div>
+            <button onClick={() => demo.reviewProviderKyc("approved")} className="approve-btn">
+              Approve
+            </button>
+            <button
+              onClick={() => demo.reviewProviderKyc("rejected", "Photo on the ID is unclear.")}
+              className="reject-btn"
+            >
+              Reject
+            </button>
+          </div>
+        )}
         {providerRows.map(([name, service, docs]) => (
           <div key={name} className="admin-list-row">
             <div className="admin-avatar">
@@ -304,6 +329,20 @@ export default function AdminPanel() {
               </tr>
             </thead>
             <tbody>
+              {demo.booking && (
+                <tr>
+                  <td className="font-bold">{demo.booking.id}</td>
+                  <td>
+                    {demo.booking.customerName}
+                    {demo.booking.customerPhone ? ` · +91 ${demo.booking.customerPhone}` : ""}
+                  </td>
+                  <td>{demo.booking.serviceName}</td>
+                  <td className="font-bold">₹{demo.orderTotal(demo.booking)}</td>
+                  <td>
+                    <span className="status-pill">{demo.booking.status.split("_").join(" ")}</span>
+                  </td>
+                </tr>
+              )}
               {bookingRows.map((r) => (
                 <tr key={r[0]}>
                   {r.map((cell, i) => (

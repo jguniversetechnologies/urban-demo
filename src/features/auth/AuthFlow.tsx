@@ -26,7 +26,8 @@ export default function AuthFlow({ screen }: { screen: Screen }) {
   const setEmail = (value: string) => demo.patchAuthDraft({ email: value })
   const finishAuth = (verifiedPhone: string) => {
     if (mode === "provider") {
-      router.push("/provider")
+      demo.signInProvider(verifiedPhone)
+      router.push("/provider/profile")
       return
     }
     demo.signInCustomer(verifiedPhone)

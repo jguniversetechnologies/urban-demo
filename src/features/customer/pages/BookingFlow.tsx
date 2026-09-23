@@ -39,12 +39,19 @@ export function Booking({ screen }: { screen: Screen }) {
   const time = demo.schedule.time
   const address = demo.schedule.address
   const payment = demo.schedule.payment
+  const [couponInput, setCouponInput] = useState("")
+  const [couponError, setCouponError] = useState("")
+  const activeCoupon = demo.coupons.find(
+    (item) => item.active && item.code === demo.couponCode,
+  )
+  const discount = activeCoupon?.off ?? 0
   const basePrice = demo.packageChoice?.price ?? 0
   const packageLabel = demo.packageChoice?.label ?? "Standard"
+  const previewTotal = Math.max(0, basePrice + platformFee - discount)
   const total = formatRupees(
     demo.booking && screen === "confirmed"
       ? demo.orderTotal(demo.booking)
-      : basePrice + platformFee,
+      : previewTotal,
   )
   useEffect(() => {
     if (!demo.ready) return
@@ -126,6 +133,36 @@ export function Booking({ screen }: { screen: Screen }) {
               {service?.name} · {selectedDay.label}, {time}
             </p>
           </div>
+          <h2 className="section-title mt-7">Coupon</h2>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={couponInput}
+              onChange={(event) => {
+                setCouponInput(event.target.value.toUpperCase())
+                setCouponError("")
+              }}
+              className="form-input mt-0"
+              placeholder="HOME100"
+            />
+            <button
+              className="secondary-btn h-[49px] px-4"
+              onClick={() => {
+                if (!demo.applyCoupon(couponInput)) {
+                  setCouponError("That code is not active.")
+                  return
+                }
+                setCouponError("")
+              }}
+            >
+              Apply
+            </button>
+          </div>
+          {activeCoupon && (
+            <p className="mt-2 text-xs font-bold text-teal-700">
+              {activeCoupon.code} applied · {activeCoupon.label}
+            </p>
+          )}
+          {couponError && <p className="error-message">{couponError}</p>}
           <h2 className="section-title mt-7">Choose payment method</h2>
           <div className="mt-4 space-y-3">
             {[

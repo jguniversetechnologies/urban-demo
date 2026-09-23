@@ -39,7 +39,43 @@ export type LiveBooking = {
   status: JobStatus
   startOtp: string
   customerName: string
+  customerPhone: string
+  discount: number
+  coupon: string
 }
+
+export type KycStatus = "none" | "pending" | "approved" | "rejected"
+
+export type ProviderAccount = {
+  phone: string
+  name: string
+  city: string
+  skill: string
+  kyc: KycStatus
+  kycNote: string
+  documents: Record<string, string>
+  token: string
+  online: boolean
+  earned: number
+}
+
+export type AppNotice = {
+  id: string
+  audience: "customer" | "provider"
+  title: string
+  body: string
+}
+
+export type Coupon = {
+  code: string
+  off: number
+  label: string
+  active: boolean
+}
+
+export type SavedAddress = { label: string; line: string }
+export type SavedCard = { label: string; detail: string }
+export type PastBooking = { id: string; name: string; when: string; price: string }
 
 type PlaceBookingInput = {
   serviceName: string
@@ -68,10 +104,21 @@ type AuthDraft = {
 type Persisted = {
   customerAuthed: boolean
   customerPhone: string
+  customerName: string
+  customerEmail: string
+  customerToken: string
+  customerRating: number | null
   city: string
   area: string
   packageChoice: PackageChoice | null
   booking: LiveBooking | null
+  history: PastBooking[]
+  addresses: SavedAddress[]
+  cards: SavedCard[]
+  notices: AppNotice[]
+  coupons: Coupon[]
+  couponCode: string
+  provider: ProviderAccount
   suspended: string[]
   hiddenCategories: string[]
   role: Mode
@@ -89,7 +136,20 @@ type DemoValue = Persisted & {
   rewardPoints: number
   categoryLive: (city: string, category: string) => boolean
   signInCustomer: (phone: string) => void
+  signInProvider: (phone: string) => void
   signOutCustomer: () => void
+  signOutProvider: () => void
+  setCustomerProfile: (patch: { name?: string; email?: string }) => void
+  setProviderProfile: (patch: Partial<Pick<ProviderAccount, "name" | "city" | "skill">>) => void
+  setProviderDocument: (name: string, fileName: string) => void
+  submitProviderKyc: () => void
+  reviewProviderKyc: (status: "approved" | "rejected", note?: string) => void
+  setProviderOnline: (online: boolean) => void
+  applyCoupon: (code: string) => boolean
+  clearCoupon: () => void
+  addAddress: (label: string, line: string) => void
+  addCard: () => void
+  setCustomerRating: (rating: number) => void
   setLocation: (city: string, area: string) => void
   setPackageChoice: (choice: PackageChoice) => void
   placeBooking: (input: PlaceBookingInput) => void
@@ -114,13 +174,42 @@ type DemoValue = Persisted & {
 
 const STORAGE_KEY = "homify-demo"
 
+const emptyProvider: ProviderAccount = {
+  phone: "",
+  name: "",
+  city: "",
+  skill: "",
+  kyc: "none",
+  kycNote: "",
+  documents: {},
+  token: "",
+  online: false,
+  earned: 0,
+}
+
 const initialPersisted: Persisted = {
   customerAuthed: false,
   customerPhone: "",
+  customerName: "",
+  customerEmail: "",
+  customerToken: "",
+  customerRating: null,
   city: "",
   area: "",
   packageChoice: null,
   booking: null,
+  history: [],
+  addresses: [
+    { label: "Home", line: "12, 4th Cross" },
+    { label: "Office", line: "80 Feet Road" },
+  ],
+  cards: [{ label: "HDFC Visa •••• 4820", detail: "Expires 09/28" }],
+  notices: [],
+  coupons: [
+    { code: "HOME100", off: 100, label: "₹100 off your visit", active: true },
+  ],
+  couponCode: "",
+  provider: emptyProvider,
   suspended: [],
   hiddenCategories: [],
   role: "customer",
@@ -138,6 +227,27 @@ const initialPersisted: Persisted = {
   adminCity: "Bengaluru",
 }
 
+function makeToken(prefix: string) {
+  const alphabet = "abcdef0123456789"
+  let body = ""
+  for (let index = 0; index < 24; index += 1) {
+    body += alphabet[Math.floor(Math.random() * alphabet.length)]
+  }
+  return `${prefix}_${body}`
+}
+
+function addNotice(
+  notices: AppNotice[],
+  audience: AppNotice["audience"],
+  title: string,
+  body: string,
+) {
+  return [
+    { id: `${Date.now()}-${audience}`, audience, title, body },
+    ...notices,
+  ].slice(0, 20)
+}
+
 const DemoContext = createContext<DemoValue | null>(null)
 
 function loadPersisted(): Persisted | null {
@@ -150,6 +260,10 @@ function loadPersisted(): Persisted | null {
       ...parsed,
       authDraft: { ...initialPersisted.authDraft, ...parsed.authDraft },
       schedule: { ...initialPersisted.schedule, ...parsed.schedule },
+      provider: { ...emptyProvider, ...parsed.provider },
+      coupons: parsed.coupons?.length ? parsed.coupons : initialPersisted.coupons,
+      addresses: parsed.addresses?.length ? parsed.addresses : initialPersisted.addresses,
+      cards: parsed.cards?.length ? parsed.cards : initialPersisted.cards,
     }
   } catch {
     return null
@@ -183,20 +297,163 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       categoryLive: (nextCity, category) =>
         !data.hiddenCategories.includes(`${nextCity}:${category}`),
       signInCustomer: (phone) =>
-        patch({ customerAuthed: true, customerPhone: phone }),
-      signOutCustomer: () => patch({ customerAuthed: false, customerPhone: "" }),
+        setData((current) => ({
+          ...current,
+          customerAuthed: true,
+          customerPhone: phone,
+          customerName: current.authDraft.name || current.customerName,
+          customerEmail: current.authDraft.email || current.customerEmail,
+          customerToken: current.customerToken || makeToken("cust"),
+          notices: addNotice(
+            current.notices,
+            "customer",
+            "You're signed in",
+            `We'll use +91 ${phone} for booking updates.`,
+          ),
+        })),
+      signInProvider: (phone) =>
+        setData((current) => {
+          const same = current.provider.phone === phone && phone !== ""
+          const provider: ProviderAccount = same
+            ? {
+                ...current.provider,
+                name: current.authDraft.name || current.provider.name,
+                token: current.provider.token || makeToken("prov"),
+              }
+            : {
+                ...emptyProvider,
+                phone,
+                name: current.authDraft.name || "",
+                token: makeToken("prov"),
+              }
+          return {
+            ...current,
+            provider,
+            notices: addNotice(
+              current.notices,
+              "provider",
+              "Partner signed in",
+              `This device is saved for +91 ${phone}.`,
+            ),
+          }
+        }),
+      signOutCustomer: () => patch({ customerAuthed: false }),
+      signOutProvider: () =>
+        setData((current) => ({
+          ...current,
+          provider: { ...current.provider, online: false },
+        })),
+      setCustomerProfile: (profile) =>
+        setData((current) => ({
+          ...current,
+          customerName: profile.name ?? current.customerName,
+          customerEmail: profile.email ?? current.customerEmail,
+        })),
+      setProviderProfile: (profile) =>
+        setData((current) => ({
+          ...current,
+          provider: { ...current.provider, ...profile },
+        })),
+      setProviderDocument: (name, fileName) =>
+        setData((current) => ({
+          ...current,
+          provider: {
+            ...current.provider,
+            documents: { ...current.provider.documents, [name]: fileName },
+          },
+        })),
+      submitProviderKyc: () =>
+        setData((current) => ({
+          ...current,
+          provider: {
+            ...current.provider,
+            kyc: "pending",
+            kycNote: "",
+          },
+          notices: addNotice(
+            current.notices,
+            "provider",
+            "KYC submitted",
+            "Admin will check your documents before you can go online.",
+          ),
+        })),
+      reviewProviderKyc: (status, note = "") =>
+        setData((current) => ({
+          ...current,
+          provider: {
+            ...current.provider,
+            kyc: status,
+            kycNote: note,
+            online: status === "approved" ? current.provider.online : false,
+          },
+          notices: addNotice(
+            current.notices,
+            "provider",
+            status === "approved" ? "KYC approved" : "KYC needs a change",
+            status === "approved"
+              ? "You can go online and accept jobs."
+              : note || "Upload the documents again.",
+          ),
+        })),
+      setProviderOnline: (online) =>
+        setData((current) => {
+          const blocked =
+            current.provider.kyc !== "approved" ||
+            current.suspended.includes(current.provider.name)
+          if (online && blocked) return current
+          return { ...current, provider: { ...current.provider, online } }
+        }),
+      applyCoupon: (code) => {
+        const found = data.coupons.find(
+          (item) => item.active && item.code.toLowerCase() === code.trim().toLowerCase(),
+        )
+        if (!found) return false
+        patch({ couponCode: found.code })
+        return true
+      },
+      clearCoupon: () => patch({ couponCode: "" }),
+      addAddress: (label, line) =>
+        setData((current) => ({
+          ...current,
+          addresses: [...current.addresses, { label, line }],
+        })),
+      addCard: () =>
+        setData((current) => ({
+          ...current,
+          cards: [
+            ...current.cards,
+            { label: "UPI · you@okhdfc", detail: "Added just now" },
+          ],
+        })),
+      setCustomerRating: (customerRating) => patch({ customerRating }),
       setLocation: (city, area) => patch({ city, area }),
       setPackageChoice: (packageChoice) => patch({ packageChoice }),
       placeBooking: (input) =>
-        patch({
-          booking: {
+        setData((current) => {
+          const coupon = current.coupons.find(
+            (item) => item.active && item.code === current.couponCode,
+          )
+          const booking: LiveBooking = {
             ...input,
             id: "HM240518",
             extras: [],
             status: "requested",
             startOtp,
-            customerName: "Aarav Sharma",
-          },
+            customerName: current.customerName || "Customer",
+            customerPhone: current.customerPhone,
+            discount: coupon?.off ?? 0,
+            coupon: coupon?.code ?? "",
+          }
+          return {
+            ...current,
+            booking,
+            notices: addNotice(
+              current.notices,
+              "customer",
+              "Request sent",
+              `${booking.serviceName} is waiting for a partner to accept.`,
+            ),
+          }
         }),
       acceptJob: () =>
         setData((current) => ({
@@ -204,6 +461,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           booking: current.booking
             ? { ...current.booking, status: "accepted" }
             : current.booking,
+          notices: current.booking
+            ? addNotice(
+                current.notices,
+                "customer",
+                "Booking accepted",
+                `${current.provider.name || "Your partner"} accepted the job.`,
+              )
+            : current.notices,
         })),
       declineJob: () =>
         setData((current) => ({
@@ -212,12 +477,46 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             current.booking?.status === "requested" ? null : current.booking,
         })),
       setJobStatus: (status) =>
-        setData((current) => ({
-          ...current,
-          booking: current.booking
-            ? { ...current.booking, status }
-            : current.booking,
-        })),
+        setData((current) => {
+          if (!current.booking) return current
+          const booking = { ...current.booking, status }
+          const justDone =
+            status === "completed" && current.booking.status !== "completed"
+          const labels: Record<JobStatus, string> = {
+            requested: "Request sent",
+            accepted: "Booking accepted",
+            on_the_way: "Partner is on the way",
+            started: "Service started",
+            completed: "Service completed",
+          }
+          return {
+            ...current,
+            booking,
+            history: justDone
+              ? [
+                  {
+                    id: booking.id,
+                    name: booking.serviceName,
+                    when: `${booking.dateLabel} · Completed`,
+                    price: `₹${booking.basePrice + booking.extras.reduce((sum, item) => sum + item.price, 0)}`,
+                  },
+                  ...current.history.filter((item) => item.id !== booking.id),
+                ]
+              : current.history,
+            provider: justDone
+              ? {
+                  ...current.provider,
+                  earned: current.provider.earned + booking.basePrice,
+                }
+              : current.provider,
+            notices: addNotice(
+              current.notices,
+              "customer",
+              labels[status],
+              booking.serviceName,
+            ),
+          }
+        }),
       verifyStartOtp: (code) => {
         const matches = code === startOtp
         if (matches) {
@@ -226,6 +525,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             booking: current.booking
               ? { ...current.booking, status: "started" }
               : current.booking,
+            notices: current.booking
+              ? addNotice(
+                  current.notices,
+                  "customer",
+                  "Service started",
+                  current.booking.serviceName,
+                )
+              : current.notices,
           }))
         }
         return matches
@@ -260,7 +567,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             ? current.suspended.filter((item) => item !== name)
             : [...current.suspended, name],
         })),
-      orderTotal: (current) => bookingTotal(current.basePrice, current.extras),
+      orderTotal: (current) =>
+        Math.max(
+          0,
+          bookingTotal(current.basePrice, current.extras) - (current.discount || 0),
+        ),
       setRole: (role) => patch({ role }),
       setPendingPath: (pendingPath) =>
         setData((current) =>

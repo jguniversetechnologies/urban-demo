@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   BadgeCheck,
   Bell,
@@ -9,7 +9,6 @@ import {
   FileCheck2,
   LayoutDashboard,
   MapPin,
-  Phone,
   UserRound,
   Wrench,
 } from "lucide-react"
@@ -20,50 +19,22 @@ import { useDemo } from "@/state/DemoState"
 import { useProviderState } from "@/features/provider/ProviderState"
 import type { Screen } from "@/types/navigation"
 
-function Countdown({
-  seconds,
-  onExpire,
-}: {
-  seconds: number
-  onExpire: () => void
-}) {
-  const [left, setLeft] = useState(seconds)
-  useEffect(() => {
-    if (left <= 0) {
-      onExpire()
-      return
-    }
-    const timer = window.setTimeout(() => setLeft((value) => value - 1), 1000)
-    return () => window.clearTimeout(timer)
-  }, [left, onExpire])
-  const mins = Math.floor(Math.max(left, 0) / 60)
-  const secs = String(Math.max(left, 0) % 60).padStart(2, "0")
-  return (
-    <span className="text-[11px] font-bold text-amber-700">
-      Accept within {mins}:{secs}
-    </span>
-  )
-}
-
 export default function ProviderPanel({ screen }: { screen: Screen }) {
   const demo = useDemo()
   const go = useGo()
+  const router = useRouter()
   const {
-    online,
-    setOnline,
     startCode,
     setStartCode,
     startError,
     setStartError,
-    pendingJobs,
-    rejectJob,
-    jobStatus,
-    setJobStatus,
-    documents,
-    setDocument,
   } = useProviderState()
-  const suspended = demo.suspended.includes("Ravi Kumar")
+  const provider = demo.provider
+  const suspended = provider.name !== "" && demo.suspended.includes(provider.name)
   const live = demo.booking
+  const online = provider.online
+  const canWork = provider.kyc === "approved" && !suspended
+  const setOnline = (next: boolean) => demo.setProviderOnline(next)
   const tabs = [
     ["provider", LayoutDashboard, "Home"],
     ["requests", Bell, "Requests"],
@@ -76,10 +47,19 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
       <>
         <h1 className="text-2xl font-extrabold">Job requests</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {pendingJobs.length + (live?.status === "requested" ? 1 : 0)} new
-          requests near you
+          {live?.status === "requested" && canWork ? "1 new request near you" : "No new requests"}
         </p>
-        {live?.status === "requested" && (
+        {provider.kyc !== "approved" && (
+          <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+            Complete KYC and wait for admin approval before jobs arrive.
+          </p>
+        )}
+        {provider.kyc === "approved" && !online && (
+          <p className="mt-4 rounded-2xl bg-slate-100 px-4 py-3 text-xs font-semibold text-slate-600">
+            Go online to receive the customer's request.
+          </p>
+        )}
+        {canWork && online && live?.status === "requested" && (
           <div className="mt-4 rounded-2xl border border-teal-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <b className="text-sm">{live.serviceName}</b>
@@ -88,11 +68,8 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
               </b>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              {live.customerName} · {live.address} · {live.time}
+              {live.customerName} · {live.customerPhone ? `+91 ${live.customerPhone}` : "Customer"} · {live.address} · {live.time}
             </p>
-            <div className="mt-2">
-              <Countdown seconds={120} onExpire={demo.declineJob} />
-            </div>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={demo.declineJob}
@@ -113,47 +90,14 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
             </div>
           </div>
         )}
-        {pendingJobs.length === 0 && live?.status !== "requested" ? (
+        {(!canWork || !online || live?.status !== "requested") && (
           <div className="mt-8 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
             <BadgeCheck className="mx-auto text-teal-600" />
             <b className="mt-3 block text-sm">You're all caught up</b>
             <p className="mt-1 text-xs text-slate-500">
-              New nearby requests will appear here.
+              A customer request shows here after you are approved and online.
             </p>
           </div>
-        ) : (
-          pendingJobs.map((job) => (
-            <div
-              key={job.name}
-              className="mt-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
-            >
-              <div className="flex justify-between">
-                <b className="text-sm">{job.name}</b>
-                <b className="text-sm text-teal-700">{job.amount}</b>
-              </div>
-              <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                <MapPin size={12} /> {job.distance} away · Today, {job.time}
-              </p>
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => rejectJob(job.name)}
-                  className="secondary-btn h-10 flex-1 text-xs"
-                >
-                  Reject
-                </button>
-                <button
-                  onClick={() => {
-                    rejectJob(job.name)
-                    setJobStatus("accepted")
-                    go("active")
-                  }}
-                  className="primary-btn h-10 flex-1 text-xs"
-                >
-                  Accept
-                </button>
-              </div>
-            </div>
-          ))
         )}
       </>
     ) : screen === "active" && live && live.status !== "requested" ? (
@@ -253,79 +197,10 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
     ) : screen === "active" ? (
       <>
         <p className="eyebrow">Current job</p>
-        <h1 className="mt-2 text-2xl font-extrabold">Home deep cleaning</h1>
-        <div className="mt-6 rounded-2xl bg-slate-900 p-5 text-white">
-          <p className="text-xs text-slate-400">Customer</p>
-          <h3 className="mt-1 font-bold">Aarav Sharma</h3>
-          <p className="mt-3 flex items-center gap-2 text-xs text-slate-300">
-            <MapPin size={14} />
-            12, 4th Cross, Koramangala
-          </p>
-          <div className="mt-4 flex gap-2">
-            <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">
-              <Phone size={13} className="mr-1 inline" /> Call
-            </button>
-            <button className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold">
-              <MapPin size={13} className="mr-1 inline" /> Navigate
-            </button>
-          </div>
-        </div>
-        <div className="mt-6 flex items-center justify-between">
-          {[
-            ["accepted", "Accepted"],
-            ["way", "On way"],
-            ["started", "Started"],
-            ["completed", "Done"],
-          ].map(([key, label], i) => (
-            <div key={key} className="flex flex-1 flex-col items-center">
-              <span
-                className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold ${
-                  ["accepted", "way", "started", "completed"].indexOf(
-                    jobStatus,
-                  ) >= i
-                    ? "bg-teal-600 text-white"
-                    : "bg-slate-200 text-slate-400"
-                }`}
-              >
-                {i + 1}
-              </span>
-              <small className="mt-2 text-[9px] font-bold text-slate-500">
-                {label}
-              </small>
-            </div>
-          ))}
-        </div>
-        {jobStatus === "accepted" && (
-          <button
-            onClick={() => setJobStatus("way")}
-            className="primary-btn mt-7 w-full"
-          >
-            I'm on the way
-          </button>
-        )}
-        {jobStatus === "way" && (
-          <button
-            onClick={() => setJobStatus("started")}
-            className="primary-btn mt-7 w-full"
-          >
-            Start service
-          </button>
-        )}
-        {jobStatus === "started" && (
-          <button
-            onClick={() => setJobStatus("completed")}
-            className="primary-btn mt-7 w-full"
-          >
-            Mark completed
-          </button>
-        )}
-        {jobStatus === "completed" && (
-          <div className="mt-7 rounded-2xl bg-teal-50 p-5 text-center text-teal-800">
-            <BadgeCheck className="mx-auto" />
-            <b className="mt-2 block">Job completed successfully</b>
-            <p className="mt-1 text-xs">₹1,299 added to your earnings</p>
-          </div>
-        )}
+        <h1 className="mt-2 text-2xl font-extrabold">No active job</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Accept a customer request and the visit will show here.
+        </p>
       </>
     ) : screen === "earnings" ? (
       <>
@@ -367,15 +242,30 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-200">
           <div
             className="h-full bg-teal-600 transition-all"
-            style={{ width: `${(Object.keys(documents).length / 3) * 100}%` }}
+            style={{ width: `${(Object.keys(provider.documents).length / 3) * 100}%` }}
           />
         </div>
         <p className="mt-2 text-xs font-bold text-teal-700">
-          {Object.keys(documents).length} of 3 documents uploaded
+          {Object.keys(provider.documents).length} of 3 documents uploaded
         </p>
+        {provider.kyc === "pending" && (
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            Waiting for admin to check these documents.
+          </p>
+        )}
+        {provider.kyc === "rejected" && (
+          <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+            {provider.kycNote || "Admin asked you to upload the documents again."}
+          </p>
+        )}
+        {provider.kyc === "approved" && (
+          <p className="mt-3 rounded-xl bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-800">
+            Approved. You can go online and take jobs.
+          </p>
+        )}
         {["Government ID", "Address proof", "Professional certificate"].map(
           (x) => {
-            const uploaded = documents[x]
+            const uploaded = provider.documents[x]
             return (
               <label
                 key={x}
@@ -406,15 +296,15 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file) setDocument(x, file.name)
+                    if (file) demo.setProviderDocument(x, file.name)
                   }}
                 />
               </label>
             )
           },
         )}
-        {Object.keys(documents).length === 3 && (
-          <button className="primary-btn mt-6 w-full">
+        {Object.keys(provider.documents).length === 3 && provider.kyc !== "approved" && (
+          <button className="primary-btn mt-6 w-full" onClick={demo.submitProviderKyc}>
             Submit for verification
           </button>
         )}
@@ -424,7 +314,12 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-slate-500">Good morning,</p>
-            <h1 className="mt-1 text-2xl font-extrabold">Ravi Kumar</h1>
+            <h1 className="mt-1 text-2xl font-extrabold">{provider.name || "Partner"}</h1>
+            {provider.kyc !== "approved" && (
+              <p className="mt-1 text-xs font-bold text-amber-700">
+                KYC {provider.kyc === "pending" ? "waiting for admin" : "not finished"}
+              </p>
+            )}
             {suspended && (
               <p className="mt-1 text-xs font-bold text-rose-600">
                 Account suspended by admin
@@ -449,7 +344,7 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
         </div>
         <div className="mt-6 rounded-3xl bg-slate-900 p-6 text-white">
           <p className="text-xs text-slate-400">Today's earnings</p>
-          <p className="mt-2 text-3xl font-extrabold">₹1,850</p>
+          <p className="mt-2 text-3xl font-extrabold">₹{(1850 + provider.earned).toLocaleString("en-IN")}</p>
           <div className="mt-5 flex gap-6 text-xs text-slate-300">
             <span>
               <b className="block text-lg text-white">4</b>Jobs done
@@ -466,32 +361,37 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
           <Bell size={21} className="text-amber-700" />
           <span className="flex-1">
             <b className="block text-sm">
-              {pendingJobs.length + (live?.status === "requested" ? 1 : 0)} new
-              job requests
+              {canWork && online && live?.status === "requested" ? "1 new job request" : "No new job requests"}
             </b>
             <small className="text-slate-500">
-              {online
-                ? "Review before they expire"
-                : "Go online to receive more requests"}
+              {canWork
+                ? online
+                  ? "The customer's booking shows up here"
+                  : "Go online to receive the request"
+                : "Finish KYC before you can go online"}
             </small>
           </span>
           <ChevronRight size={18} />
         </button>
         <h2 className="section-title mt-7">Today's schedule</h2>
-        <div className="mt-4 rounded-2xl border border-slate-100 p-4">
-          <p className="text-xs font-bold text-teal-700">10:00 AM</p>
-          <b className="mt-1 block text-sm">Home deep cleaning</b>
-          <p className="mt-1 text-xs text-slate-500">
-            Aarav Sharma · Koramangala
-          </p>
-        </div>
+        {live ? (
+          <div className="mt-4 rounded-2xl border border-slate-100 p-4">
+            <p className="text-xs font-bold text-teal-700">{live.time}</p>
+            <b className="mt-1 block text-sm">{live.serviceName}</b>
+            <p className="mt-1 text-xs capitalize text-slate-500">
+              {live.customerName} · {live.status.split("_").join(" ")}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-500">No visit booked yet.</p>
+        )}
       </>
     )
   return (
     <div className="screen">
       <header className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
         <Logo compact />
-        <button onClick={() => go("login")} className="icon-btn">
+        <button onClick={() => router.push("/provider/profile")} className="icon-btn" aria-label="Profile">
           <UserRound size={18} />
         </button>
       </header>
