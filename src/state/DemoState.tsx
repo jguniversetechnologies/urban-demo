@@ -15,6 +15,7 @@ import {
 } from "@/data/market"
 import type { CatalogMatch } from "@/data/services"
 import type { Mode } from "@/types/navigation"
+import { loadStore, saveBooking, saveCustomer, saveProvider } from "@/lib/syncLive"
 
 export type JobStatus =
   | "requested"
@@ -236,6 +237,39 @@ function makeToken(prefix: string) {
   return `${prefix}_${body}`
 }
 
+function rememberBooking(booking: LiveBooking | null, providerPhone = "") {
+  if (!booking) return
+  void saveBooking(booking, providerPhone)
+}
+
+function rememberCustomer(current: Persisted) {
+  if (!current.customerPhone) return
+  void saveCustomer({
+    phone: current.customerPhone,
+    name: current.customerName,
+    email: current.customerEmail,
+    token: current.customerToken,
+    city: current.city,
+    area: current.area,
+    rating: current.customerRating,
+  })
+}
+
+function rememberProvider(provider: ProviderAccount) {
+  if (!provider.phone) return
+  void saveProvider({
+    phone: provider.phone,
+    name: provider.name,
+    city: provider.city,
+    skill: provider.skill,
+    kyc: provider.kyc,
+    kycNote: provider.kycNote,
+    documents: provider.documents,
+    token: provider.token,
+    online: provider.online,
+  })
+}
+
 function addNotice(
   notices: AppNotice[],
   audience: AppNotice["audience"],
@@ -283,6 +317,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ready) return
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    rememberCustomer(data)
+    rememberProvider(data.provider)
+    rememberBooking(data.booking, data.provider.phone)
   }, [data, ready])
 
   const value = useMemo<DemoValue>(() => {
@@ -297,20 +334,76 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       categoryLive: (nextCity, category) =>
         !data.hiddenCategories.includes(`${nextCity}:${category}`),
       signInCustomer: (phone) =>
-        setData((current) => ({
-          ...current,
-          customerAuthed: true,
-          customerPhone: phone,
-          customerName: current.authDraft.name || current.customerName,
-          customerEmail: current.authDraft.email || current.customerEmail,
-          customerToken: current.customerToken || makeToken("cust"),
-          notices: addNotice(
-            current.notices,
-            "customer",
-            "You're signed in",
-            `We'll use +91 ${phone} for booking updates.`,
-          ),
-        })),
+        setData((current) => {
+          const token = current.customerToken || makeToken("cust")
+          const name = current.authDraft.name || current.customerName
+          const email = current.authDraft.email || current.customerEmail
+          const next = {
+            ...current,
+            customerAuthed: true,
+            customerPhone: phone,
+            customerName: name,
+            customerEmail: email,
+            customerToken: token,
+            notices: addNotice(
+              current.notices,
+              "customer",
+              "You're signed in",
+              `We'll use +91 ${phone} for booking updates.`,
+            ),
+          }
+          queueMicrotask(() => {
+            rememberCustomer(next)
+            void loadStore().then((store) => {
+              const saved = store.customers.find((item) => item.phone === phone)
+              const mine = store.bookings.filter((item) => item.customerPhone === phone)
+              const active = mine.find((item) => item.status !== "completed")
+              setData((latest) => ({
+                ...latest,
+                customerName: latest.customerName || saved?.name || "",
+                customerEmail: latest.customerEmail || saved?.email || "",
+                city: latest.city || saved?.city || "",
+                area: latest.area || saved?.area || "",
+                customerRating: latest.customerRating ?? saved?.rating ?? null,
+                booking:
+                  latest.booking ??
+                  (active
+                    ? {
+                        id: active.id,
+                        serviceName: active.serviceName,
+                        category: active.category,
+                        packageLabel: active.packageLabel,
+                        basePrice: active.basePrice,
+                        extras: active.extras,
+                        dateLabel: active.dateLabel,
+                        time: active.time,
+                        address: active.address,
+                        payment: active.payment,
+                        status: active.status as JobStatus,
+                        startOtp: active.startOtp,
+                        customerName: active.customerName,
+                        customerPhone: active.customerPhone,
+                        discount: active.discount,
+                        coupon: active.coupon,
+                      }
+                    : null),
+                history: [
+                  ...latest.history,
+                  ...mine
+                    .filter((item) => item.status === "completed")
+                    .filter((item) => !latest.history.some((saved) => saved.id === item.id))
+                    .map((item) => ({
+                      id: item.id,
+                      name: item.serviceName,
+                      when: `${item.dateLabel} · Completed`,
+                      price: `₹${item.basePrice}`,
+                    })),
+                ],
+              }))
+            })
+          })
+          return next
+        }),
       signInProvider: (phone) =>
         setData((current) => {
           const same = current.provider.phone === phone && phone !== ""
@@ -326,6 +419,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
                 name: current.authDraft.name || "",
                 token: makeToken("prov"),
               }
+          queueMicrotask(() => rememberProvider(provider))
           return {
             ...current,
             provider,
@@ -426,7 +520,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           ],
         })),
       setCustomerRating: (customerRating) => patch({ customerRating }),
-      setLocation: (city, area) => patch({ city, area }),
+      setLocation: (city, area) =>
+        setData((current) => {
+          const next = { ...current, city, area }
+          queueMicrotask(() => rememberCustomer(next))
+          return next
+        }),
       setPackageChoice: (packageChoice) => patch({ packageChoice }),
       placeBooking: (input) =>
         setData((current) => {
@@ -435,7 +534,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           )
           const booking: LiveBooking = {
             ...input,
-            id: "HM240518",
+            id: `HM${Date.now().toString().slice(-6)}`,
             extras: [],
             status: "requested",
             startOtp,
@@ -444,6 +543,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             discount: coupon?.off ?? 0,
             coupon: coupon?.code ?? "",
           }
+          queueMicrotask(() => rememberBooking(booking, current.provider.phone))
           return {
             ...current,
             booking,
@@ -456,20 +556,24 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           }
         }),
       acceptJob: () =>
-        setData((current) => ({
-          ...current,
-          booking: current.booking
-            ? { ...current.booking, status: "accepted" }
-            : current.booking,
-          notices: current.booking
-            ? addNotice(
-                current.notices,
-                "customer",
-                "Booking accepted",
-                `${current.provider.name || "Your partner"} accepted the job.`,
-              )
-            : current.notices,
-        })),
+        setData((current) => {
+          const booking = current.booking
+            ? { ...current.booking, status: "accepted" as const }
+            : current.booking
+          queueMicrotask(() => rememberBooking(booking, current.provider.phone))
+          return {
+            ...current,
+            booking,
+            notices: current.booking
+              ? addNotice(
+                  current.notices,
+                  "customer",
+                  "Booking accepted",
+                  `${current.provider.name || "Your partner"} accepted the job.`,
+                )
+              : current.notices,
+          }
+        }),
       declineJob: () =>
         setData((current) => ({
           ...current,
@@ -489,6 +593,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             started: "Service started",
             completed: "Service completed",
           }
+          queueMicrotask(() => rememberBooking(booking, current.provider.phone))
           return {
             ...current,
             booking,

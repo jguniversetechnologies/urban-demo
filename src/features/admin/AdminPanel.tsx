@@ -172,12 +172,6 @@ export default function AdminPanel() {
     ["Imran Ali", "AC repair", "Aadhaar + Certificate"],
     ["Nisha Shah", "Beauty", "Aadhaar + PAN"],
   ]
-  const bookingRows = [
-    ["HM-1284", "Aarav S.", "Deep cleaning", "₹1,299", "In progress"],
-    ["HM-1283", "Meera K.", "AC service", "₹799", "Completed"],
-    ["HM-1282", "Kabir R.", "Electrician", "₹499", "Accepted"],
-    ["HM-1281", "Ananya J.", "Salon at home", "₹1,899", "Requested"],
-  ]
   const action = (message: string) => {
     setNotice(message)
     window.setTimeout(() => setNotice(""), 2200)
@@ -343,22 +337,24 @@ export default function AdminPanel() {
                   </td>
                 </tr>
               )}
-              {bookingRows.map((r) => (
-                <tr key={r[0]}>
-                  {r.map((cell, i) => (
-                    <td
-                      key={cell}
-                      className={i === 0 || i === 3 ? "font-bold" : ""}
-                    >
-                      {i === 4 ? (
-                        <span className="status-pill">{cell}</span>
-                      ) : (
-                        cell
-                      )}
+              {demo.history
+                .filter((item) => item.id !== demo.booking?.id)
+                .map((item) => (
+                  <tr key={item.id}>
+                    <td className="font-bold">{item.id}</td>
+                    <td>{demo.customerName || "Customer"}</td>
+                    <td>{item.name}</td>
+                    <td className="font-bold">{item.price}</td>
+                    <td>
+                      <span className="status-pill">completed</span>
                     </td>
-                  ))}
+                  </tr>
+                ))}
+              {!demo.booking && demo.history.length === 0 && (
+                <tr>
+                  <td colSpan={5}>No bookings yet. They appear here when a customer books.</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -444,16 +440,34 @@ export default function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookingRows.map((r) => (
-                    <tr key={r[0]}>
-                      <td className="font-semibold">{r[1]}</td>
-                      <td>{r[2]}</td>
-                      <td className="font-semibold">{r[3]}</td>
+                  {demo.booking && (
+                    <tr>
+                      <td className="font-semibold">
+                        {demo.booking.customerName}
+                        {demo.booking.customerPhone ? ` · +91 ${demo.booking.customerPhone}` : ""}
+                      </td>
+                      <td>{demo.booking.serviceName}</td>
+                      <td className="font-semibold">₹{demo.orderTotal(demo.booking)}</td>
                       <td>
-                        <span className="status-pill">{r[4]}</span>
+                        <span className="status-pill">{demo.booking.status.split("_").join(" ")}</span>
+                      </td>
+                    </tr>
+                  )}
+                  {demo.history.map((item) => (
+                    <tr key={item.id}>
+                      <td className="font-semibold">{demo.customerName || "Customer"}</td>
+                      <td>{item.name}</td>
+                      <td className="font-semibold">{item.price}</td>
+                      <td>
+                        <span className="status-pill">completed</span>
                       </td>
                     </tr>
                   ))}
+                  {!demo.booking && demo.history.length === 0 && (
+                    <tr>
+                      <td colSpan={4}>No live bookings yet.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

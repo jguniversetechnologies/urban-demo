@@ -6,18 +6,22 @@ import {
   BadgeCheck,
   Bell,
   ChevronRight,
-  Gift,
   MapPin,
   Search,
   ShieldCheck,
 } from "lucide-react"
 import { BottomNav } from "@/components/AppChrome"
-import { promoBanners } from "@/data/market"
-import { categories, searchServices } from "@/data/services"
+import { categories, findService, searchServices } from "@/data/services"
 import { categoryPath, servicePath } from "@/lib/paths"
 import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
 import type { ServiceItem } from "@/types/navigation"
+
+const popularNames = [
+  "Essential home cleaning",
+  "AC general service",
+  "Leakage repair",
+]
 
 export function HomeScreen() {
   const demo = useDemo()
@@ -38,26 +42,32 @@ export function HomeScreen() {
   )
   const visibleCategories = categories.filter(
     (item) =>
-      item.label === "View all" ||
-      !demo.city ||
-      demo.categoryLive(demo.city, item.label),
+      item.label !== "View all" &&
+      (!demo.city || demo.categoryLive(demo.city, item.label)),
   )
   const place = demo.area ? `${demo.area}, ${demo.city}` : "Set your location"
+  const firstName = demo.customerName.split(" ")[0]
+  const popular = popularNames
+    .map((name) => findService(name))
+    .filter((item) => item && (!demo.city || demo.categoryLive(demo.city, item.category)))
+  const again = demo.history[0]
 
   return (
     <div className="screen home-screen">
-      <header className="bg-white px-5 pb-4 pt-4">
-        <div className="flex items-center justify-between">
-          <button className="text-left" onClick={() => go("location")}>
-            <p className="text-[11px] font-semibold text-slate-400">
-              Service location
+      <header className="bg-white px-5 pb-4 pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-400">
+              {firstName ? `Hello, ${firstName}` : "Hello"}
             </p>
-            <span className="mt-1 flex items-center gap-1 text-sm font-extrabold text-slate-900">
-              <MapPin size={15} className="text-teal-600" />
-              {place}
-              <ChevronRight size={14} className="text-slate-400" />
-            </span>
-          </button>
+            <button className="mt-1 text-left" onClick={() => go("location")}>
+              <span className="flex items-center gap-1 text-[15px] font-extrabold text-slate-900">
+                <MapPin size={15} className="text-teal-600" />
+                {place}
+                <ChevronRight size={14} className="text-slate-400" />
+              </span>
+            </button>
+          </div>
           <button
             className="relative grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-700"
             aria-label="Notifications"
@@ -75,7 +85,7 @@ export function HomeScreen() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400"
-            placeholder="Search for a service"
+            placeholder="Search cleaning, AC, plumber..."
             aria-label="Search for a service"
           />
         </label>
@@ -86,7 +96,7 @@ export function HomeScreen() {
             onClick={() => go("login")}
             className="mb-4 flex w-full items-center justify-between rounded-2xl bg-amber-50 px-4 py-3 text-left text-xs font-bold text-amber-900"
           >
-            Browsing as guest. Log in to book.
+            Log in to book and track your visit.
             <ChevronRight size={16} />
           </button>
         )}
@@ -97,7 +107,7 @@ export function HomeScreen() {
                 No matching services in {demo.city || "your city"}
               </p>
             ) : (
-              results.slice(0, 6).map((item) => (
+              results.slice(0, 8).map((item) => (
                 <button
                   key={`${item.category}-${item.name}`}
                   onClick={() => openDetail(item, item.category)}
@@ -116,41 +126,34 @@ export function HomeScreen() {
           </div>
         ) : (
           <>
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {promoBanners.map((banner) => (
-                <button
-                  key={banner.id}
-                  onClick={() => openService(banner.category)}
-                  className={`${banner.className} w-64 shrink-0 rounded-2xl p-4 text-left text-white`}
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">
-                    {banner.eyebrow}
-                  </p>
-                  <b className="mt-2 block text-lg leading-tight">
-                    {banner.title}
-                  </b>
-                  <p className="mt-1 text-xs text-white/80">{banner.subtitle}</p>
-                </button>
-              ))}
-            </div>
+            {demo.booking && (
+              <button
+                onClick={() => go("tracking")}
+                className="mb-4 w-full rounded-2xl bg-slate-900 p-4 text-left text-white"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-teal-200">
+                  Live booking
+                </p>
+                <b className="mt-1 block text-base">{demo.booking.serviceName}</b>
+                <p className="mt-1 text-xs capitalize text-slate-300">
+                  {demo.booking.status.split("_").join(" ")} · {demo.booking.time}
+                </p>
+                <span className="mt-3 inline-block text-xs font-bold text-teal-200">
+                  Track visit
+                </span>
+              </button>
+            )}
             <button
-              onClick={() => go("rewards")}
-              className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-amber-100 bg-white px-4 py-3 text-left"
+              onClick={() => openService("Cleaning")}
+              className="mb-5 w-full rounded-2xl bg-teal-700 px-4 py-4 text-left text-white"
             >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-700">
-                <Gift size={18} />
-              </span>
-              <span className="flex-1">
-                <b className="block text-sm">
-                  {demo.rewardPoints} reward points
-                </b>
-                <small className="text-slate-500">
-                  Offers waiting in {demo.city || "your city"}
-                </small>
-              </span>
-              <ChevronRight size={16} className="text-slate-300" />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-teal-100">
+                Coupon HOME100
+              </p>
+              <b className="mt-1 block text-lg">₹100 off at payment</b>
+              <p className="mt-1 text-xs text-teal-50">Use it when you book a service.</p>
             </button>
-            <div className="mt-6 flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <h2 className="section-title">Services</h2>
               <button
                 className="text-xs font-bold text-teal-700"
@@ -159,64 +162,72 @@ export function HomeScreen() {
                 View all
               </button>
             </div>
-            <div className="mt-3 grid grid-cols-4 gap-3">
+            <div className="mt-3 grid grid-cols-4 gap-x-2 gap-y-4">
               {visibleCategories.map(({ label, icon: Icon, tone }) => (
                 <button
                   key={label}
-                  onClick={() =>
-                    openService(label === "View all" ? "Cleaning" : label)
-                  }
-                  className="flex flex-col items-center gap-2 text-center text-[11px] font-semibold text-slate-600"
+                  onClick={() => openService(label)}
+                  className="flex flex-col items-center gap-2 text-center text-[11px] font-semibold leading-4 text-slate-700"
                 >
-                  <span
-                    className={`grid h-14 w-14 place-items-center rounded-2xl shadow-sm ${tone}`}
-                  >
+                  <span className={`grid h-[52px] w-[52px] place-items-center rounded-2xl ${tone}`}>
                     <Icon size={22} />
                   </span>
                   {label}
                 </button>
               ))}
             </div>
+            {again && (
+              <>
+                <h2 className="section-title mt-7">Book again</h2>
+                <button
+                  onClick={() => {
+                    const match = findService(again.name)
+                    if (match) openDetail(match, match.category)
+                  }}
+                  className="mt-3 flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-left shadow-sm"
+                >
+                  <span>
+                    <b className="block text-sm">{again.name}</b>
+                    <small className="text-slate-500">{again.when}</small>
+                  </span>
+                  <ChevronRight size={16} className="text-slate-300" />
+                </button>
+              </>
+            )}
             <h2 className="section-title mt-7">
-              Popular in {demo.area || "your area"}
+              Popular in {demo.area || demo.city || "your city"}
             </h2>
             <div className="mt-3 space-y-2">
-              {["Essential home cleaning", "AC general service", "Leakage repair"].map(
-                (name) => {
-                  const match = results.length
-                    ? null
-                    : searchServices(name)[0]
-                  if (!match) return null
-                  return (
-                    <button
-                      key={name}
-                      onClick={() => openDetail(match, match.category)}
-                      className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-left shadow-sm"
-                    >
-                      <span>
-                        <b className="block text-sm">{match.name}</b>
-                        <small className="text-slate-500">
-                          {match.rating} · {match.price}
-                        </small>
-                      </span>
-                      <ChevronRight size={16} className="text-slate-300" />
-                    </button>
-                  )
-                },
+              {popular.map((match) =>
+                match ? (
+                  <button
+                    key={match.name}
+                    onClick={() => openDetail(match, match.category)}
+                    className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 text-left shadow-sm"
+                  >
+                    <span>
+                      <b className="block text-sm">{match.name}</b>
+                      <small className="text-slate-500">
+                        {match.rating} · {match.price}
+                      </small>
+                    </span>
+                    <ChevronRight size={16} className="text-slate-300" />
+                  </button>
+                ) : null,
               )}
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-2">
+            <div className="mt-5 flex gap-2">
               {[
-                [BadgeCheck, "Verified pros"],
+                [BadgeCheck, "Verified partners"],
                 [ShieldCheck, "30-day cover"],
               ].map(([Icon, label]) => {
                 const C = Icon as typeof BadgeCheck
                 return (
                   <div
                     key={label as string}
-                    className="rounded-2xl bg-white p-3 text-[11px] font-semibold text-slate-600"
+                    className="flex flex-1 items-center gap-2 rounded-2xl bg-white px-3 py-3 text-[11px] font-semibold text-slate-600"
                   >
-                    <C size={16} className="mb-2 text-teal-600" />
+                    <C size={16} className="text-teal-600" />
                     {label as string}
                   </div>
                 )

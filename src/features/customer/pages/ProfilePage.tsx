@@ -3,17 +3,14 @@
 import { useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import {
-  BadgePercent,
   ChevronRight,
   ClipboardList,
-  Gift,
   Headphones,
   Info,
   MapPin,
   Settings,
   Smartphone,
   Star,
-  Wallet,
   WalletCards,
 } from "lucide-react"
 import { BottomNav, Header } from "@/components/AppChrome"
@@ -51,10 +48,6 @@ export function Profile({ panel = "" }: { panel?: string }) {
   }
 
   const rows = [
-    ["My Plans", BadgePercent, "/profile/plans"],
-    ["Wallet", Wallet, "/profile/wallet"],
-    ["Gift cards", Gift, "/profile/gifts"],
-    ["Passes & membership", BadgePercent, "/profile/passes"],
     ["My rating", Star, "/profile/rating"],
     ["Manage addresses", MapPin, "/profile/addresses"],
     ["Manage payment methods", WalletCards, "/profile/payments"],

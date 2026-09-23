@@ -100,7 +100,7 @@ export function Booking({ screen }: { screen: Screen }) {
         <div className="mt-8 w-full rounded-2xl bg-slate-50 p-5 text-left">
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Booking ID</span>
-            <b>#HM240518</b>
+            <b>#{demo.booking?.id || "—"}</b>
           </div>
           <div className="mt-4 flex justify-between text-sm">
             <span className="text-slate-500">Amount due</span>
