@@ -12,7 +12,6 @@ import {
   CircleDollarSign,
   FileCheck2,
   LayoutDashboard,
-  Search,
   Store,
   Users,
   X,
@@ -147,6 +146,9 @@ export default function AdminPanel() {
   const pathname = usePathname()
   const page = adminPageFromPath(pathname)
   const [notice, setNotice] = useState("")
+  const [bookingFilter, setBookingFilter] = useState("all")
+  const [categoryName, setCategoryName] = useState("")
+  const [reminded, setReminded] = useState<string[]>([])
   const adminCity = demo.adminCity
   const setAdminCity = demo.setAdminCity
   const setPage = (next: string) => router.push(adminPath(next))
@@ -167,14 +169,38 @@ export default function AdminPanel() {
         }}
       />
     )
-  const providerRows = [
-    ["Ravi Kumar", "Cleaning", "Aadhaar + PAN"],
-    ["Imran Ali", "AC repair", "Aadhaar + Certificate"],
-    ["Nisha Shah", "Beauty", "Aadhaar + PAN"],
-  ]
   const action = (message: string) => {
     setNotice(message)
     window.setTimeout(() => setNotice(""), 2200)
+  }
+  const pendingCount =
+    demo.roster.filter((partner) => partner.review === "pending").length +
+    (demo.provider.phone && demo.provider.kyc === "pending" ? 1 : 0)
+  const liveBookings = [
+    ...(demo.booking
+      ? [
+          {
+            id: demo.booking.id,
+            customer: `${demo.booking.customerName}${demo.booking.customerPhone ? ` · +91 ${demo.booking.customerPhone}` : ""}`,
+            service: demo.booking.serviceName,
+            amount: `₹${demo.orderTotal(demo.booking)}`,
+            status: demo.booking.status.split("_").join(" "),
+          },
+        ]
+      : []),
+    ...demo.history
+      .filter((item) => item.id !== demo.booking?.id)
+      .map((item) => ({
+        id: item.id,
+        customer: demo.customerName || "Customer",
+        service: item.name,
+        amount: item.price,
+        status: "completed",
+      })),
+  ].filter((item) => bookingFilter === "all" || item.status === bookingFilter)
+  const reviewPartner = (name: string, review: "approved" | "rejected") => {
+    demo.reviewRoster(name, review)
+    action(review === "approved" ? `${name} approved` : `${name} rejected`)
   }
   const pageContent =
     page === "Providers" ? (
@@ -184,69 +210,97 @@ export default function AdminPanel() {
             <h2 className="section-title">Pending KYC approvals</h2>
             <p>Verify documents before activating provider accounts.</p>
           </div>
-          <span className="status-pill">24 pending</span>
+          <span className="status-pill">{pendingCount} pending</span>
         </div>
         {demo.provider.phone && (
           <div className="admin-list-row">
-            <div className="admin-avatar">
-              {(demo.provider.name || "P").slice(0, 2).toUpperCase()}
+            <div className="admin-person">
+              <div className="admin-avatar">
+                {(demo.provider.name || "P").slice(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <b>{demo.provider.name || "New partner"}</b>
+                <p>
+                  +91 {demo.provider.phone} · {demo.provider.skill || "Skill not set"} · KYC {demo.provider.kyc}
+                </p>
+                <p>
+                  {Object.entries(demo.provider.documents).map(([doc, file]) => `${doc}: ${file}`).join(" · ") || "No documents yet"}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <b>{demo.provider.name || "New partner"}</b>
-              <p>
-                +91 {demo.provider.phone} · {demo.provider.skill || "Skill not set"} · KYC {demo.provider.kyc}
-              </p>
-              <p>
-                {Object.entries(demo.provider.documents).map(([doc, file]) => `${doc}: ${file}`).join(" · ") || "No documents yet"}
-              </p>
+            <div className="admin-actions">
+              <button
+                onClick={() => {
+                  demo.reviewProviderKyc("approved")
+                  action(`${demo.provider.name || "Partner"} approved`)
+                }}
+                className="approve-btn"
+              >
+                {demo.provider.kyc === "approved" ? "Approved" : "Approve"}
+              </button>
+              <button
+                onClick={() => {
+                  demo.reviewProviderKyc("rejected", "Photo on the ID is unclear.")
+                  action(`${demo.provider.name || "Partner"} rejected`)
+                }}
+                className="reject-btn"
+              >
+                {demo.provider.kyc === "rejected" ? "Rejected" : "Reject"}
+              </button>
+              <button
+                onClick={() => {
+                  const active = demo.suspended.includes(demo.provider.name)
+                  demo.toggleSuspend(demo.provider.name)
+                  action(active ? `${demo.provider.name} restored` : `${demo.provider.name} suspended`)
+                }}
+                className="reject-btn"
+              >
+                {demo.suspended.includes(demo.provider.name) ? "Restore" : "Suspend"}
+              </button>
             </div>
-            <button onClick={() => demo.reviewProviderKyc("approved")} className="approve-btn">
-              Approve
-            </button>
-            <button
-              onClick={() => demo.reviewProviderKyc("rejected", "Photo on the ID is unclear.")}
-              className="reject-btn"
-            >
-              Reject
-            </button>
           </div>
         )}
-        {providerRows.map(([name, service, docs]) => (
-          <div key={name} className="admin-list-row">
-            <div className="admin-avatar">
-              {name
-                .split(" ")
-                .map((x) => x[0])
-                .join("")}
+        {demo.roster.map((partner) => (
+          <div key={partner.name} className="admin-list-row">
+            <div className="admin-person">
+              <div className="admin-avatar">
+                {partner.name
+                  .split(" ")
+                  .map((part) => part[0])
+                  .join("")}
+              </div>
+              <div className="min-w-0 flex-1">
+                <b>{partner.name}</b>
+                <p>
+                  {partner.service} · {partner.docs} · {partner.review}
+                  {demo.suspended.includes(partner.name) ? " · suspended" : ""}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <b>{name}</b>
-              <p>
-                {service} · {docs}
-              </p>
+            <div className="admin-actions">
+              <button
+                onClick={() => reviewPartner(partner.name, "approved")}
+                className="approve-btn"
+              >
+                {partner.review === "approved" ? "Approved" : "Approve"}
+              </button>
+              <button
+                onClick={() => reviewPartner(partner.name, "rejected")}
+                className="reject-btn"
+              >
+                {partner.review === "rejected" ? "Rejected" : "Reject"}
+              </button>
+              <button
+                onClick={() => {
+                  const active = demo.suspended.includes(partner.name)
+                  demo.toggleSuspend(partner.name)
+                  action(active ? `${partner.name} restored` : `${partner.name} suspended`)
+                }}
+                className="reject-btn"
+              >
+                {demo.suspended.includes(partner.name) ? "Restore" : "Suspend"}
+              </button>
             </div>
-            <button
-              onClick={() => action(`${name} approved`)}
-              className="approve-btn"
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => action(`${name} rejected`)}
-              className="reject-btn"
-            >
-              Reject
-            </button>
-            <button
-              onClick={() => {
-                const active = demo.suspended.includes(name)
-                demo.toggleSuspend(name)
-                action(active ? `${name} restored` : `${name} suspended`)
-              }}
-              className="reject-btn"
-            >
-              {demo.suspended.includes(name) ? "Restore" : "Suspend"}
-            </button>
           </div>
         ))}
       </section>
@@ -257,12 +311,27 @@ export default function AdminPanel() {
             <h2 className="section-title">Service catalog</h2>
             <p>Manage category availability and base pricing.</p>
           </div>
-          <button
-            onClick={() => action("New category form opened")}
-            className="primary-btn h-10 px-4"
+          <form
+            className="admin-actions"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const name = categoryName.trim()
+              if (!name) return
+              demo.addCategory(name)
+              setCategoryName("")
+              action(`${name} added`)
+            }}
           >
-            Add category
-          </button>
+            <input
+              value={categoryName}
+              onChange={(event) => setCategoryName(event.target.value)}
+              className="form-input mt-0 h-10 min-w-0 flex-1"
+              placeholder="Category name"
+            />
+            <button type="submit" className="primary-btn h-10 px-4">
+              Add category
+            </button>
+          </form>
         </div>
         <div className="mt-5 flex gap-2 overflow-x-auto">
           {cities.map((item) => (
@@ -298,7 +367,44 @@ export default function AdminPanel() {
               </div>
             </div>
           ))}
+          {demo.extraCategories.map((label) => (
+            <div key={label} className="rounded-2xl border border-slate-100 p-4">
+              <b className="block text-sm">{label}</b>
+              <div className="mt-2 flex justify-between text-xs text-slate-500">
+                <span>Custom</span>
+                <button
+                  onClick={() => demo.toggleCategory(adminCity, label)}
+                  className="font-bold text-teal-700"
+                >
+                  {demo.categoryLive(adminCity, label) ? "Live" : "Paused"}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
+        <h3 className="section-title mt-8">Coupons</h3>
+        <p className="mt-1 text-xs text-slate-400">
+          Only active coupons appear in the customer payment list.
+        </p>
+        {demo.coupons.map((coupon) => (
+          <div className="admin-list-row" key={coupon.code}>
+            <div className="min-w-0 flex-1">
+              <b>{coupon.code}</b>
+              <p>
+                {coupon.label} · ₹{coupon.off} off
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                demo.toggleCoupon(coupon.code)
+                action(coupon.active ? `${coupon.code} paused` : `${coupon.code} is active`)
+              }}
+              className={coupon.active ? "approve-btn" : "reject-btn"}
+            >
+              {coupon.active ? "Active" : "Paused"}
+            </button>
+          </div>
+        ))}
       </section>
     ) : page === "Bookings" ? (
       <section className="admin-card mt-7">
@@ -307,11 +413,35 @@ export default function AdminPanel() {
             <h2 className="section-title">All bookings</h2>
             <p>Monitor and manage customer orders.</p>
           </div>
-          <button className="secondary-btn h-10 px-4">
-            <Search size={15} /> Filter
-          </button>
+          <div className="admin-actions">
+            {["all", "requested", "accepted", "on the way", "started", "completed"].map((item) => (
+              <button
+                key={item}
+                onClick={() => setBookingFilter(item)}
+                className={`chip ${bookingFilter === item ? "selected" : ""}`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="mt-5 overflow-x-auto">
+        <div className="mt-5 space-y-3 md:hidden">
+          {liveBookings.map((item) => (
+            <div key={item.id} className="rounded-2xl border border-slate-100 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <b className="text-sm">{item.id}</b>
+                <span className="status-pill">{item.status}</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">{item.customer}</p>
+              <p className="mt-1 text-sm text-slate-500">{item.service}</p>
+              <b className="mt-2 block text-sm">{item.amount}</b>
+            </div>
+          ))}
+          {liveBookings.length === 0 && (
+            <p className="text-sm text-slate-500">No bookings for this filter.</p>
+          )}
+        </div>
+        <div className="mt-5 hidden overflow-x-auto md:block">
           <table className="admin-table">
             <thead>
               <tr>
@@ -323,36 +453,20 @@ export default function AdminPanel() {
               </tr>
             </thead>
             <tbody>
-              {demo.booking && (
-                <tr>
-                  <td className="font-bold">{demo.booking.id}</td>
+              {liveBookings.map((item) => (
+                <tr key={item.id}>
+                  <td className="font-bold">{item.id}</td>
+                  <td>{item.customer}</td>
+                  <td>{item.service}</td>
+                  <td className="font-bold">{item.amount}</td>
                   <td>
-                    {demo.booking.customerName}
-                    {demo.booking.customerPhone ? ` · +91 ${demo.booking.customerPhone}` : ""}
-                  </td>
-                  <td>{demo.booking.serviceName}</td>
-                  <td className="font-bold">₹{demo.orderTotal(demo.booking)}</td>
-                  <td>
-                    <span className="status-pill">{demo.booking.status.split("_").join(" ")}</span>
+                    <span className="status-pill">{item.status}</span>
                   </td>
                 </tr>
-              )}
-              {demo.history
-                .filter((item) => item.id !== demo.booking?.id)
-                .map((item) => (
-                  <tr key={item.id}>
-                    <td className="font-bold">{item.id}</td>
-                    <td>{demo.customerName || "Customer"}</td>
-                    <td>{item.name}</td>
-                    <td className="font-bold">{item.price}</td>
-                    <td>
-                      <span className="status-pill">completed</span>
-                    </td>
-                  </tr>
-                ))}
-              {!demo.booking && demo.history.length === 0 && (
+              ))}
+              {liveBookings.length === 0 && (
                 <tr>
-                  <td colSpan={5}>No bookings yet. They appear here when a customer books.</td>
+                  <td colSpan={5}>No bookings for this filter.</td>
                 </tr>
               )}
             </tbody>
@@ -381,18 +495,26 @@ export default function AdminPanel() {
             ["Nisha Shah", "₹980"],
           ].map(([n, v]) => (
             <div className="admin-list-row" key={n}>
-              <div className="admin-avatar">{n[0]}</div>
-              <div className="flex-1">
-                <b>{n}</b>
-                <p>Weekly commission due</p>
+              <div className="admin-person">
+                <div className="admin-avatar">{n[0]}</div>
+                <div className="min-w-0 flex-1">
+                  <b>{n}</b>
+                  <p>Weekly commission due · {v}</p>
+                </div>
               </div>
-              <b>{v}</b>
-              <button
-                onClick={() => action(`Reminder sent to ${n}`)}
-                className="approve-btn"
-              >
-                Remind
-              </button>
+              <div className="admin-actions">
+                <button
+                  onClick={() => {
+                    setReminded((current) =>
+                      current.includes(n) ? current : [...current, n],
+                    )
+                    action(`Reminder sent to ${n}`)
+                  }}
+                  className="approve-btn"
+                >
+                  {reminded.includes(n) ? "Sent" : "Remind"}
+                </button>
+              </div>
             </div>
           ))}
         </section>
@@ -401,10 +523,10 @@ export default function AdminPanel() {
       <>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ["Total bookings", "1,284", "+12.5%", CalendarDays],
-            ["Revenue", "₹8.42L", "+8.2%", CircleDollarSign],
-            ["Active providers", "326", "+18", Users],
-            ["Pending approvals", "24", "Review", FileCheck2],
+            ["Total bookings", String(liveBookings.length || (bookingFilter === "all" ? 0 : liveBookings.length)), "Live", CalendarDays],
+            ["Pending approvals", String(pendingCount), "Review", FileCheck2],
+            ["Active providers", String(demo.roster.filter((partner) => partner.review === "approved").length + (demo.provider.kyc === "approved" ? 1 : 0)), "Approved", Users],
+            ["Active coupons", String(demo.coupons.filter((coupon) => coupon.active).length), "Offers", CircleDollarSign],
           ].map(([x, v, t, I]) => {
             const C = I as typeof Users
             return (
@@ -429,7 +551,22 @@ export default function AdminPanel() {
             <p className="mt-1 text-xs text-slate-400">
               Latest activity across all services
             </p>
-            <div className="mt-5 overflow-x-auto">
+            <div className="mt-5 space-y-3 md:hidden">
+              {liveBookings.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-slate-100 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <b className="text-sm">{item.customer}</b>
+                    <span className="status-pill">{item.status}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-500">{item.service}</p>
+                  <b className="mt-2 block text-sm">{item.amount}</b>
+                </div>
+              ))}
+              {liveBookings.length === 0 && (
+                <p className="text-sm text-slate-500">No live bookings yet.</p>
+              )}
+            </div>
+            <div className="mt-5 hidden overflow-x-auto md:block">
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -440,30 +577,17 @@ export default function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {demo.booking && (
-                    <tr>
-                      <td className="font-semibold">
-                        {demo.booking.customerName}
-                        {demo.booking.customerPhone ? ` · +91 ${demo.booking.customerPhone}` : ""}
-                      </td>
-                      <td>{demo.booking.serviceName}</td>
-                      <td className="font-semibold">₹{demo.orderTotal(demo.booking)}</td>
-                      <td>
-                        <span className="status-pill">{demo.booking.status.split("_").join(" ")}</span>
-                      </td>
-                    </tr>
-                  )}
-                  {demo.history.map((item) => (
+                  {liveBookings.map((item) => (
                     <tr key={item.id}>
-                      <td className="font-semibold">{demo.customerName || "Customer"}</td>
-                      <td>{item.name}</td>
-                      <td className="font-semibold">{item.price}</td>
+                      <td className="font-semibold">{item.customer}</td>
+                      <td>{item.service}</td>
+                      <td className="font-semibold">{item.amount}</td>
                       <td>
-                        <span className="status-pill">completed</span>
+                        <span className="status-pill">{item.status}</span>
                       </td>
                     </tr>
                   ))}
-                  {!demo.booking && demo.history.length === 0 && (
+                  {liveBookings.length === 0 && (
                     <tr>
                       <td colSpan={4}>No live bookings yet.</td>
                     </tr>
@@ -475,17 +599,16 @@ export default function AdminPanel() {
           <section className="admin-card">
             <h2 className="section-title">Approval queue</h2>
             <p className="mt-1 text-xs text-slate-400">KYC awaiting review</p>
-            {providerRows.map(([n, s]) => (
-              <div key={n} className="admin-list-row">
-                <div className="admin-avatar">
-                  {n
-                    .split(" ")
-                    .map((x) => x[0])
-                    .join("")}
-                </div>
-                <div className="flex-1">
-                  <b>{n}</b>
-                  <p>{s}</p>
+            {demo.provider.phone && demo.provider.kyc === "pending" && (
+              <div className="admin-list-row">
+                <div className="admin-person">
+                  <div className="admin-avatar">
+                    {(demo.provider.name || "P").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <b>{demo.provider.name || "New partner"}</b>
+                    <p>{demo.provider.skill || "Skill not set"}</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setPage("Providers")}
@@ -494,13 +617,40 @@ export default function AdminPanel() {
                   Review
                 </button>
               </div>
-            ))}
+            )}
+            {demo.roster
+              .filter((partner) => partner.review === "pending")
+              .map((partner) => (
+                <div key={partner.name} className="admin-list-row">
+                  <div className="admin-person">
+                    <div className="admin-avatar">
+                      {partner.name
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <b>{partner.name}</b>
+                      <p>{partner.service}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setPage("Providers")}
+                    className="text-xs font-bold text-teal-700"
+                  >
+                    Review
+                  </button>
+                </div>
+              ))}
+            {pendingCount === 0 && (
+              <p className="mt-4 text-sm text-slate-500">No partners waiting for review.</p>
+            )}
           </section>
         </div>
       </>
     )
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900">
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-slate-200 bg-white p-5 md:flex">
         <Logo />
         <p className="mb-3 mt-10 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -542,11 +692,11 @@ export default function AdminPanel() {
           </button>
         </div>
       </aside>
-      <main className="p-5 md:ml-64 md:p-9">
+      <main className="admin-main">
         <header className="flex items-center justify-between">
           <div>
             <p className="eyebrow">Operations workspace</p>
-            <h1 className="mt-1 text-3xl font-extrabold">{page}</h1>
+            <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">{page}</h1>
           </div>
           <div className="flex items-center gap-3">
             <button className="icon-btn border border-slate-200 bg-white">

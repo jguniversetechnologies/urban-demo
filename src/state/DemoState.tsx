@@ -74,6 +74,15 @@ export type Coupon = {
   active: boolean
 }
 
+export type RosterReview = "pending" | "approved" | "rejected"
+
+export type RosterPartner = {
+  name: string
+  service: string
+  docs: string
+  review: RosterReview
+}
+
 export type SavedAddress = { label: string; line: string }
 export type SavedCard = { label: string; detail: string }
 export type PastBooking = { id: string; name: string; when: string; price: string }
@@ -120,6 +129,8 @@ type Persisted = {
   coupons: Coupon[]
   couponCode: string
   provider: ProviderAccount
+  roster: RosterPartner[]
+  extraCategories: string[]
   suspended: string[]
   hiddenCategories: string[]
   role: Mode
@@ -145,9 +156,12 @@ type DemoValue = Persisted & {
   setProviderDocument: (name: string, fileName: string) => void
   submitProviderKyc: () => void
   reviewProviderKyc: (status: "approved" | "rejected", note?: string) => void
+  reviewRoster: (name: string, review: RosterReview) => void
+  addCategory: (name: string) => void
   setProviderOnline: (online: boolean) => void
   applyCoupon: (code: string) => boolean
   clearCoupon: () => void
+  toggleCoupon: (code: string) => void
   addAddress: (label: string, line: string) => void
   addCard: () => void
   setCustomerRating: (rating: number) => void
@@ -174,6 +188,12 @@ type DemoValue = Persisted & {
 }
 
 const STORAGE_KEY = "homify-demo"
+
+const starterRoster: RosterPartner[] = [
+  { name: "Ravi Kumar", service: "Cleaning", docs: "Aadhaar + PAN", review: "pending" },
+  { name: "Imran Ali", service: "AC repair", docs: "Aadhaar + Certificate", review: "pending" },
+  { name: "Nisha Shah", service: "Beauty", docs: "Aadhaar + PAN", review: "pending" },
+]
 
 const emptyProvider: ProviderAccount = {
   phone: "",
@@ -208,9 +228,12 @@ const initialPersisted: Persisted = {
   notices: [],
   coupons: [
     { code: "HOME100", off: 100, label: "₹100 off your visit", active: true },
+    { code: "WELCOME50", off: 50, label: "₹50 off your first booking", active: true },
   ],
   couponCode: "",
   provider: emptyProvider,
+  roster: starterRoster,
+  extraCategories: [],
   suspended: [],
   hiddenCategories: [],
   role: "customer",
@@ -284,6 +307,14 @@ function addNotice(
 
 const DemoContext = createContext<DemoValue | null>(null)
 
+function mergeCoupons(saved?: Coupon[]) {
+  const current = saved?.length ? saved : []
+  const missing = initialPersisted.coupons.filter(
+    (item) => !current.some((savedItem) => savedItem.code === item.code),
+  )
+  return current.length ? [...current, ...missing] : initialPersisted.coupons
+}
+
 function loadPersisted(): Persisted | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
@@ -295,7 +326,9 @@ function loadPersisted(): Persisted | null {
       authDraft: { ...initialPersisted.authDraft, ...parsed.authDraft },
       schedule: { ...initialPersisted.schedule, ...parsed.schedule },
       provider: { ...emptyProvider, ...parsed.provider },
-      coupons: parsed.coupons?.length ? parsed.coupons : initialPersisted.coupons,
+      coupons: mergeCoupons(parsed.coupons),
+      roster: parsed.roster?.length ? parsed.roster : starterRoster,
+      extraCategories: parsed.extraCategories ?? [],
       addresses: parsed.addresses?.length ? parsed.addresses : initialPersisted.addresses,
       cards: parsed.cards?.length ? parsed.cards : initialPersisted.cards,
     }
@@ -489,6 +522,21 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               : note || "Upload the documents again.",
           ),
         })),
+      reviewRoster: (name, review) =>
+        setData((current) => ({
+          ...current,
+          roster: current.roster.map((partner) =>
+            partner.name === name ? { ...partner, review } : partner,
+          ),
+        })),
+      addCategory: (name) =>
+        setData((current) =>
+          current.extraCategories.some(
+            (item) => item.toLowerCase() === name.toLowerCase(),
+          )
+            ? current
+            : { ...current, extraCategories: [...current.extraCategories, name] },
+        ),
       setProviderOnline: (online) =>
         setData((current) => {
           const blocked =
@@ -506,6 +554,18 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         return true
       },
       clearCoupon: () => patch({ couponCode: "" }),
+      toggleCoupon: (code) =>
+        setData((current) => ({
+          ...current,
+          coupons: current.coupons.map((item) =>
+            item.code === code ? { ...item, active: !item.active } : item,
+          ),
+          couponCode:
+            current.couponCode === code &&
+            current.coupons.find((item) => item.code === code)?.active
+              ? ""
+              : current.couponCode,
+        })),
       addAddress: (label, line) =>
         setData((current) => ({
           ...current,

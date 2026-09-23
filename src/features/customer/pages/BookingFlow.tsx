@@ -39,7 +39,6 @@ export function Booking({ screen }: { screen: Screen }) {
   const time = demo.schedule.time
   const address = demo.schedule.address
   const payment = demo.schedule.payment
-  const [couponInput, setCouponInput] = useState("")
   const [couponError, setCouponError] = useState("")
   const activeCoupon = demo.coupons.find(
     (item) => item.active && item.code === demo.couponCode,
@@ -134,29 +133,33 @@ export function Booking({ screen }: { screen: Screen }) {
             </p>
           </div>
           <h2 className="section-title mt-7">Coupon</h2>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={couponInput}
-              onChange={(event) => {
-                setCouponInput(event.target.value.toUpperCase())
+          <p className="mt-1 text-xs text-slate-500">Pick an active offer.</p>
+          <select
+            className="form-input"
+            value={activeCoupon ? activeCoupon.code : ""}
+            onChange={(event) => {
+              const code = event.target.value
+              if (!code) {
+                demo.clearCoupon()
                 setCouponError("")
-              }}
-              className="form-input mt-0"
-              placeholder="HOME100"
-            />
-            <button
-              className="secondary-btn h-[49px] px-4"
-              onClick={() => {
-                if (!demo.applyCoupon(couponInput)) {
-                  setCouponError("That code is not active.")
-                  return
-                }
-                setCouponError("")
-              }}
-            >
-              Apply
-            </button>
-          </div>
+                return
+              }
+              if (!demo.applyCoupon(code)) {
+                setCouponError("That code is not active.")
+                return
+              }
+              setCouponError("")
+            }}
+          >
+            <option value="">No coupon</option>
+            {demo.coupons
+              .filter((item) => item.active)
+              .map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.code} · {item.label}
+                </option>
+              ))}
+          </select>
           {activeCoupon && (
             <p className="mt-2 text-xs font-bold text-teal-700">
               {activeCoupon.code} applied · {activeCoupon.label}

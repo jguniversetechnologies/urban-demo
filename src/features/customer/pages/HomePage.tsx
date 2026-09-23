@@ -143,16 +143,25 @@ export function HomeScreen() {
                 </span>
               </button>
             )}
-            <button
-              onClick={() => openService("Cleaning")}
-              className="mb-5 w-full rounded-2xl bg-teal-700 px-4 py-4 text-left text-white"
-            >
-              <p className="text-[10px] font-bold uppercase tracking-wider text-teal-100">
-                Coupon HOME100
-              </p>
-              <b className="mt-1 block text-lg">₹100 off at payment</b>
-              <p className="mt-1 text-xs text-teal-50">Use it when you book a service.</p>
-            </button>
+            {demo.coupons.some((coupon) => coupon.active) && (
+              <button
+                onClick={() => openService("Cleaning")}
+                className="mb-5 w-full rounded-2xl bg-teal-700 px-4 py-4 text-left text-white"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-teal-100">
+                  Active coupons
+                </p>
+                <b className="mt-1 block text-lg">
+                  {demo.coupons
+                    .filter((coupon) => coupon.active)
+                    .map((coupon) => coupon.code)
+                    .join(" · ")}
+                </b>
+                <p className="mt-1 text-xs text-teal-50">
+                  Choose one from the list at payment.
+                </p>
+              </button>
+            )}
             <div className="flex items-center justify-between">
               <h2 className="section-title">Services</h2>
               <button

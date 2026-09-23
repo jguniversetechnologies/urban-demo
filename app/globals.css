@@ -43,6 +43,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .admin-list-row { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f1f5f9; padding: 16px 0; font-size: 13px; }
 .admin-list-row:last-child { border-bottom: 0; }
 .admin-list-row p { margin-top: 3px; color: #94a3b8; font-size: 11px; }
+.admin-person { display: flex; min-width: 0; flex: 1; align-items: center; gap: 12px; }
+.admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-main { padding: 16px; }
 .admin-avatar { display: grid; width: 38px; height: 38px; flex: none; place-items: center; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 800; }
 .approve-btn, .reject-btn { border-radius: 9px; padding: 8px 11px; font-size: 11px; font-weight: 800; }
 .approve-btn { background: #ecfdf5; color: #047857; }
@@ -51,7 +54,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px
 .admin-table th { padding: 0 12px 12px 0; color: #94a3b8; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
 .admin-table td { border-top: 1px solid #f1f5f9; padding: 15px 12px 15px 0; color: #475569; }
 .status-pill { display: inline-flex; white-space: nowrap; border-radius: 999px; background: #f0fdfa; padding: 5px 9px; color: #0f766e; font-size: 10px; font-weight: 800; }
-.admin-toast { position: fixed; right: 24px; bottom: 24px; z-index: 60; display: flex; align-items: center; gap: 8px; border-radius: 12px; background: #0f172a; padding: 13px 17px; color: white; box-shadow: 0 15px 40px rgba(15,23,42,.25); font-size: 12px; font-weight: 700; }
+.admin-toast { position: fixed; right: 16px; bottom: 16px; left: 16px; z-index: 60; display: flex; align-items: center; gap: 8px; border-radius: 12px; background: #0f172a; padding: 13px 17px; color: white; box-shadow: 0 15px 40px rgba(15,23,42,.25); font-size: 12px; font-weight: 700; }
+@media (min-width: 768px) {
+  .admin-main { margin-left: 16rem; padding: 36px; }
+  .admin-toast { left: auto; right: 24px; bottom: 24px; }
+}
+@media (max-width: 767px) {
+  .admin-card { padding: 16px; }
+  .admin-section-head { flex-direction: column; align-items: flex-start; }
+  .admin-list-row { flex-direction: column; align-items: stretch; }
+  .admin-actions { width: 100%; }
+  .admin-actions .approve-btn, .admin-actions .reject-btn { flex: 1; }
+}
 @media (max-width: 767px) {
   .app-stage { flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; background: white; }
   .prototype-switcher { position: relative; left: auto; top: auto; width: max-content; max-width: calc(100% - 16px); flex: none; transform: none; margin: calc(8px + env(safe-area-inset-top)) auto 8px; }
