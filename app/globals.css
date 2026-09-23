@@ -1,7 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-@import 'tailwindcss';
+@import "tailwindcss";
 
-:root { font-family: "DM Sans", sans-serif; color: #0f172a; background: #e9efee; font-synthesis: none; }
+:root { font-family: var(--font-dm-sans), sans-serif; color: #0f172a; background: #e9efee; font-synthesis: none; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(13, 148, 136, .28); outline-offset: 2px; }
 .app-stage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 72px 20px 24px; background: radial-gradient(circle at 20% 10%, rgba(13,148,136,.13), transparent 27%), linear-gradient(145deg,#eef3f2,#dfe8e6); }
