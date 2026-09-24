@@ -47,8 +47,11 @@ export function Booking({ screen }: { screen: Screen }) {
   const discount = activeCoupon?.off ?? 0
   const basePrice = demo.packageChoice?.price ?? 0
   const packageLabel = demo.packageChoice?.label ?? "Standard"
-  const walletUsed = demo.schedule.useWallet ? Math.min(100, demo.wallet, Math.max(0, basePrice + platformFee - discount)) : 0
-  const previewTotal = Math.max(0, basePrice + platformFee - discount - walletUsed)
+  const subscriptionDiscount = demo.schedule.visitType === "weekly" ? 0.15 : demo.schedule.visitType === "monthly" ? 0.20 : 0
+  const subscriptionAmount = Math.round(basePrice * subscriptionDiscount)
+  const totalDiscount = discount + subscriptionAmount
+  const walletUsed = demo.schedule.useWallet ? Math.min(100, demo.wallet, Math.max(0, basePrice + platformFee - totalDiscount)) : 0
+  const previewTotal = Math.max(0, basePrice + platformFee - totalDiscount - walletUsed)
   const served = !demo.city || demo.areaServed(demo.city)
   const blocked = demo.blockedPhones.includes(demo.customerPhone)
   const total = formatRupees(
@@ -142,8 +145,18 @@ export function Booking({ screen }: { screen: Screen }) {
             <p className="mt-1 text-3xl font-extrabold">{total}</p>
             <p className="mt-3 text-xs text-slate-300">
               {service?.name} · {selectedDay.label}, {time}
+              {demo.schedule.visitType !== "once" && (
+                <span className="ml-2 text-teal-200">
+                  · {demo.schedule.visitType === "weekly" ? "Weekly" : "Monthly"} subscription
+                </span>
+              )}
             </p>
           </div>
+          {subscriptionAmount > 0 && (
+            <div className="mt-4 rounded-xl bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-800">
+              Subscription discount: ₹{subscriptionAmount} off
+            </div>
+          )}
           <h2 className="section-title mt-7">Coupon</h2>
           <p className="mt-1 text-xs text-slate-500">Pick an active offer.</p>
           <select
@@ -326,18 +339,37 @@ export function Booking({ screen }: { screen: Screen }) {
             )
           })}
         </div>
-        <h2 className="section-title mt-7">Visit type</h2>
+        <h2 className="section-title mt-7">Service frequency</h2>
         <div className="mt-3 flex gap-2">
-          {(["once", "weekly"] as const).map((item) => (
+          {(["once", "weekly", "monthly"] as const).map((item) => (
             <button
               key={item}
               className={`chip ${demo.schedule.visitType === item ? "selected" : ""}`}
               onClick={() => demo.patchSchedule({ visitType: item })}
             >
-              {item === "once" ? "One time" : "Every week"}
+              {item === "once" ? "One-time" : item === "weekly" ? "Weekly" : "Monthly"}
             </button>
           ))}
         </div>
+        {demo.schedule.visitType !== "once" && (
+          <div className="mt-4 rounded-xl bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-800">
+            {demo.schedule.visitType === "weekly" ? "Weekly subscription · Save 15%" : "Monthly subscription · Save 20%"} · Auto-scheduled visits
+          </div>
+        )}
+        {demo.schedule.visitType !== "once" && (
+          <div className="mt-3 flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="sameProvider"
+              checked={demo.schedule.sameProvider}
+              onChange={(e) => demo.patchSchedule({ sameProvider: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-600"
+            />
+            <label htmlFor="sameProvider" className="text-sm font-semibold text-slate-700">
+              Same provider for all visits
+            </label>
+          </div>
+        )}
         <label className="form-label mt-6">
           Notes for the partner
           <textarea

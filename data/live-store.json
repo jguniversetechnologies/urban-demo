@@ -1,5 +1,15 @@
 {
-  "customers": [],
+  "customers": [
+    {
+      "phone": "9096275725",
+      "name": "",
+      "email": "",
+      "token": "cust_52a4886caf79c01272d7303a",
+      "city": "Rasayani",
+      "area": "Mohpada",
+      "rating": null
+    }
+  ],
   "providers": [],
   "bookings": []
 }

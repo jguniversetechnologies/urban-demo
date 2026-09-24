@@ -136,8 +136,9 @@ export type ScheduleDraft = {
   address: string
   payment: "online" | "cash"
   notes: string
-  visitType: "once" | "weekly"
+  visitType: "once" | "weekly" | "monthly"
   useWallet: boolean
+  sameProvider: boolean
 }
 
 type AuthDraft = {
@@ -321,6 +322,7 @@ const initialPersisted: Persisted = {
     notes: "",
     visitType: "once",
     useWallet: false,
+    sameProvider: false,
   },
   adminAuthenticated: false,
   adminCity: "Bengaluru",
