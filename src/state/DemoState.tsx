@@ -44,7 +44,7 @@ export type LiveBooking = {
   discount: number
   coupon: string
   notes: string
-  visitType: "once" | "weekly"
+  visitType: "once" | "weekly" | "monthly"
   paymentStatus: "pending" | "paid" | "failed" | "cash"
   walletUsed: number
   reviewNote: string
@@ -125,7 +125,7 @@ type PlaceBookingInput = {
   address: string
   payment: "online" | "cash"
   notes?: string
-  visitType?: "once" | "weekly"
+  visitType?: "once" | "weekly" | "monthly"
   paymentStatus?: LiveBooking["paymentStatus"]
   walletUsed?: number
 }
