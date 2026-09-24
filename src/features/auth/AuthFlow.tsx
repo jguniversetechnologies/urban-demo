@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, Phone } from "lucide-react"
 import { Header, Logo } from "@/components/AppChrome"
@@ -17,6 +17,8 @@ export default function AuthFlow({ screen }: { screen: Screen }) {
   const mode = demo.role === "provider" ? "provider" : "customer"
   const [otp, setOtp] = useState("")
   const [error, setError] = useState("")
+  const [secondsLeft, setSecondsLeft] = useState(45)
+  const [otpExpired, setOtpExpired] = useState(false)
   const phone = demo.authDraft.phone
   const name = demo.authDraft.name
   const email = demo.authDraft.email
@@ -49,9 +51,28 @@ export default function AuthFlow({ screen }: { screen: Screen }) {
     setError("")
     go("otp")
   }
+  useEffect(() => {
+    if (screen !== "otp") return
+    setSecondsLeft(45)
+    setOtpExpired(false)
+    const timer = window.setInterval(() => {
+      setSecondsLeft((current) => {
+        if (current <= 1) {
+          setOtpExpired(true)
+          return 0
+        }
+        return current - 1
+      })
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [screen])
   const verifyOtp = () => {
+    if (otpExpired) {
+      setError("This code has expired. Resend it and try again.")
+      return
+    }
     if (otp !== "4826") {
-      setError("Enter the demo verification code 4826.")
+      setError("That code is not valid. Use 4826.")
       return
     }
     setError("")
@@ -115,8 +136,24 @@ export default function AuthFlow({ screen }: { screen: Screen }) {
             Verify & continue
           </button>
           <p className="mt-5 text-center text-sm text-slate-500">
-            Didn't receive it?{" "}
-            <button className="font-bold text-teal-700">Resend in 00:24</button>
+            Didn&apos;t receive it?{" "}
+            {secondsLeft > 0 ? (
+              <span className="font-bold text-slate-400">
+                Resend in 00:{String(secondsLeft).padStart(2, "0")}
+              </span>
+            ) : (
+              <button
+                className="font-bold text-teal-700"
+                onClick={() => {
+                  setOtp("")
+                  setError("")
+                  setOtpExpired(false)
+                  setSecondsLeft(45)
+                }}
+              >
+                Resend code
+              </button>
+            )}
           </p>
         </div>
       </div>

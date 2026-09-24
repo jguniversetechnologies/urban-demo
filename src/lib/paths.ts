@@ -51,6 +51,9 @@ const adminPages: Record<string, string> = {
   Providers: "/admin/providers",
   Services: "/admin/services",
   Bookings: "/admin/bookings",
+  Customers: "/admin/customers",
+  Payments: "/admin/payments",
+  Support: "/admin/support",
   Commission: "/admin/commission",
 }
 

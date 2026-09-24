@@ -31,6 +31,10 @@ export function Profile({ panel = "" }: { panel?: string }) {
   const [help, setHelp] = useState("")
   const [addressLabel, setAddressLabel] = useState("")
   const [addressLine, setAddressLine] = useState("")
+  const [landmark, setLandmark] = useState("")
+  const [ticketTopic, setTicketTopic] = useState("Booking issue")
+  const [ticketDetail, setTicketDetail] = useState("")
+  const [ticketPhoto, setTicketPhoto] = useState("")
   const [draftName, setDraftName] = useState(demo.customerName)
   const incomplete = !demo.customerName
   const place = [demo.area, demo.city].filter(Boolean).join(", ")
@@ -49,6 +53,9 @@ export function Profile({ panel = "" }: { panel?: string }) {
 
   const rows = [
     ["My rating", Star, "/profile/rating"],
+    ["Wallet", WalletCards, "/profile/wallet"],
+    ["Favourites", Star, "/profile/favorites"],
+    ["Refer a friend", Info, "/profile/refer"],
     ["Manage addresses", MapPin, "/profile/addresses"],
     ["Manage payment methods", WalletCards, "/profile/payments"],
     ["Settings", Settings, "/profile/settings"],
@@ -138,9 +145,13 @@ export function Profile({ panel = "" }: { panel?: string }) {
               <b className="text-sm">{item.label}</b>
               <p className="mt-1 text-xs text-slate-500">
                 {item.line}
+                {item.landmark ? ` · ${item.landmark}` : ""}
                 {place ? `, ${place}` : ""}
               </p>
             </div>
+            <button className="text-xs font-bold text-rose-600" onClick={() => demo.removeAddress(item.label)}>
+              Delete
+            </button>
           </div>
         ))}
         <label className="form-label mt-6">
@@ -148,16 +159,21 @@ export function Profile({ panel = "" }: { panel?: string }) {
           <input value={addressLabel} onChange={(event) => setAddressLabel(event.target.value)} className="form-input" placeholder="Parents" />
         </label>
         <label className="form-label">
-          Address
+          House, building, locality
           <input value={addressLine} onChange={(event) => setAddressLine(event.target.value)} className="form-input" placeholder="Street and area" />
+        </label>
+        <label className="form-label">
+          Landmark
+          <input value={landmark} onChange={(event) => setLandmark(event.target.value)} className="form-input" placeholder="Near the temple" />
         </label>
         <button
           className="primary-btn w-full"
           onClick={() => {
             if (!addressLabel.trim() || !addressLine.trim()) return
-            demo.addAddress(addressLabel.trim(), addressLine.trim())
+            demo.addAddress(addressLabel.trim(), addressLine.trim(), landmark.trim())
             setAddressLabel("")
             setAddressLine("")
+            setLandmark("")
           }}
         >
           Add address
@@ -206,6 +222,45 @@ export function Profile({ panel = "" }: { panel?: string }) {
             )}
           </button>
         ))}
+        <h2 className="section-title mt-8">Raise a request</h2>
+        <select className="form-input" value={ticketTopic} onChange={(event) => setTicketTopic(event.target.value)}>
+          {["Booking issue", "Payment issue", "Service issue", "Partner issue"].map((item) => (
+            <option key={item}>{item}</option>
+          ))}
+        </select>
+        <textarea
+          value={ticketDetail}
+          onChange={(event) => setTicketDetail(event.target.value)}
+          className="form-input h-20 py-3"
+          placeholder="Describe the issue"
+        />
+        <label className="mt-3 block text-xs font-bold text-teal-700">
+          {ticketPhoto || "Attach a photo"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => setTicketPhoto(event.target.files?.[0]?.name || "")}
+          />
+        </label>
+        <button
+          className="primary-btn mt-4 w-full"
+          onClick={() => {
+            if (!ticketDetail.trim()) return
+            demo.raiseTicket("customer", ticketTopic, ticketDetail.trim(), ticketPhoto)
+            setTicketDetail("")
+            setTicketPhoto("")
+          }}
+        >
+          Send to support
+        </button>
+        {demo.tickets.filter((item) => item.from === "customer").map((item) => (
+          <div key={item.id} className="mt-3 rounded-2xl border border-slate-100 p-4">
+            <b className="text-sm">{item.topic}</b>
+            <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
+            <p className="mt-2 text-xs font-bold capitalize text-teal-700">{item.status} · {item.id}</p>
+          </div>
+        ))}
       </>
     )
   } else if (panel === "My Plans") {
@@ -214,8 +269,8 @@ export function Profile({ panel = "" }: { panel?: string }) {
     detail = (
       <>
         <h2 className="section-title mt-6">Wallet</h2>
-        <p className="mt-3 text-3xl font-extrabold">₹0</p>
-        <p className="mt-2 text-sm text-slate-500">Pay on the booking screen. Wallet top-up comes with the full app.</p>
+        <p className="mt-3 text-3xl font-extrabold">₹{demo.wallet}</p>
+        <p className="mt-2 text-sm text-slate-500">Promotional credit is already here. Refunds from a cancelled paid visit are added back. Use it on the payment screen.</p>
       </>
     )
   } else if (panel === "Gift cards") {
@@ -251,6 +306,46 @@ export function Profile({ panel = "" }: { panel?: string }) {
           className="mt-8 text-sm font-bold text-rose-600"
         >
           Sign out
+        </button>
+        <button
+          onClick={() => {
+            demo.deleteCustomer()
+            go("login")
+          }}
+          className="mt-4 text-sm font-bold text-slate-400"
+        >
+          Delete account
+        </button>
+      </>
+    )
+  } else if (panel === "Favourites") {
+    detail = (
+      <>
+        <h2 className="section-title mt-6">Saved services</h2>
+        {demo.favorites.length === 0 && <p className="mt-4 text-sm text-slate-500">Save a service from its page.</p>}
+        {demo.favorites.map((name) => (
+          <button key={name} className="mt-3 w-full rounded-2xl border border-slate-100 p-4 text-left text-sm font-bold" onClick={() => openBooking(name)}>
+            {name}
+          </button>
+        ))}
+      </>
+    )
+  } else if (panel === "Refer") {
+    const code = `HOME${(demo.customerPhone || "4826").slice(-4)}`
+    detail = (
+      <>
+        <h2 className="section-title mt-6">Refer a friend</h2>
+        <p className="mt-3 text-3xl font-extrabold">{code}</p>
+        <p className="mt-2 text-sm text-slate-500">They get ₹50 off with WELCOME50. You get ₹50 wallet credit after their first completed visit.</p>
+        <button
+          className="primary-btn mt-6 w-full"
+          onClick={() => {
+            if (navigator.share) {
+              void navigator.share({ title: "Homify", text: `Use my Homify code ${code}` })
+            }
+          }}
+        >
+          Share code
         </button>
       </>
     )

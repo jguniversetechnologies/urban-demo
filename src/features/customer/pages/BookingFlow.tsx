@@ -40,13 +40,17 @@ export function Booking({ screen }: { screen: Screen }) {
   const address = demo.schedule.address
   const payment = demo.schedule.payment
   const [couponError, setCouponError] = useState("")
+  const [gateway, setGateway] = useState<"idle" | "open" | "failed">("idle")
   const activeCoupon = demo.coupons.find(
     (item) => item.active && item.code === demo.couponCode,
   )
   const discount = activeCoupon?.off ?? 0
   const basePrice = demo.packageChoice?.price ?? 0
   const packageLabel = demo.packageChoice?.label ?? "Standard"
-  const previewTotal = Math.max(0, basePrice + platformFee - discount)
+  const walletUsed = demo.schedule.useWallet ? Math.min(100, demo.wallet, Math.max(0, basePrice + platformFee - discount)) : 0
+  const previewTotal = Math.max(0, basePrice + platformFee - discount - walletUsed)
+  const served = !demo.city || demo.areaServed(demo.city)
+  const blocked = demo.blockedPhones.includes(demo.customerPhone)
   const total = formatRupees(
     demo.booking && screen === "confirmed"
       ? demo.orderTotal(demo.booking)
@@ -71,6 +75,10 @@ export function Booking({ screen }: { screen: Screen }) {
       time,
       address: `${address}${demo.area ? `, ${demo.area}` : ""}`,
       payment: payment === "cash" ? "cash" : "online",
+      notes: demo.schedule.notes,
+      visitType: demo.schedule.visitType,
+      paymentStatus: payment === "cash" ? "cash" : "paid",
+      walletUsed,
     })
     go("confirmed")
   }
@@ -96,13 +104,17 @@ export function Booking({ screen }: { screen: Screen }) {
             {demo.booking?.time ?? time}
           </b>
         </p>
-        <div className="mt-8 w-full rounded-2xl bg-slate-50 p-5 text-left">
+          <div className="mt-8 w-full rounded-2xl bg-slate-50 p-5 text-left">
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Booking ID</span>
             <b>#{demo.booking?.id || "—"}</b>
           </div>
           <div className="mt-4 flex justify-between text-sm">
-            <span className="text-slate-500">Amount due</span>
+            <span className="text-slate-500">Receipt</span>
+            <b className="capitalize">{demo.booking?.paymentStatus || "paid"}</b>
+          </div>
+          <div className="mt-4 flex justify-between text-sm">
+            <span className="text-slate-500">Amount</span>
             <b>{total}</b>
           </div>
         </div>
@@ -166,6 +178,13 @@ export function Booking({ screen }: { screen: Screen }) {
             </p>
           )}
           {couponError && <p className="error-message">{couponError}</p>}
+          <button
+            className={`mt-4 w-full rounded-2xl border px-4 py-3 text-left text-sm ${demo.schedule.useWallet ? "border-teal-600 bg-teal-50" : "border-slate-200"}`}
+            onClick={() => demo.patchSchedule({ useWallet: !demo.schedule.useWallet })}
+          >
+            <b>Use wallet credits</b>
+            <p className="mt-1 text-xs text-slate-500">Balance ₹{demo.wallet}. Up to ₹100 applies on this visit.</p>
+          </button>
           <h2 className="section-title mt-7">Choose payment method</h2>
           <div className="mt-4 space-y-3">
             {[
@@ -217,9 +236,41 @@ export function Booking({ screen }: { screen: Screen }) {
             })}
           </div>
         </main>
+        {gateway === "open" && (
+          <div className="mx-5 mb-4 rounded-2xl border border-slate-200 p-4">
+            <b className="text-sm">Razorpay</b>
+            <p className="mt-1 text-xs text-slate-500">UPI, card, or net banking for {total}.</p>
+            <div className="mt-3 flex gap-2">
+              <button className="primary-btn h-10 flex-1 text-xs" onClick={confirmBooking}>
+                Payment success
+              </button>
+              <button
+                className="secondary-btn h-10 flex-1 text-xs"
+                onClick={() => setGateway("failed")}
+              >
+                Payment failed
+              </button>
+            </div>
+          </div>
+        )}
+        {gateway === "failed" && (
+          <p className="mx-5 mb-3 text-xs font-semibold text-rose-600">
+            Payment failed. You can try again. The booking was not created.
+          </p>
+        )}
         <div className="sticky-bar">
           <p className="font-extrabold">{total}</p>
-          <button className="primary-btn w-48" onClick={confirmBooking}>
+          <button
+            className="primary-btn w-48 disabled:opacity-40"
+            disabled={!served || blocked}
+            onClick={() => {
+              if (payment === "online") {
+                setGateway("open")
+                return
+              }
+              confirmBooking()
+            }}
+          >
             {payment === "online" ? "Confirm & pay" : "Confirm booking"}
           </button>
         </div>
@@ -257,26 +308,51 @@ export function Booking({ screen }: { screen: Screen }) {
             "2:00 PM",
             "3:30 PM",
             "5:00 PM",
-          ].map((t) => (
+          ].map((t) => {
+            const unavailable = t === "2:00 PM"
+            return (
             <button
+              disabled={unavailable}
               onClick={() => demo.patchSchedule({ time: t })}
-              className={`rounded-xl border px-2 py-3 text-xs font-bold ${
+              className={`rounded-xl border px-2 py-3 text-xs font-bold disabled:opacity-40 ${
                 time === t
                   ? "border-teal-600 bg-teal-50 text-teal-800"
                   : "border-slate-200 text-slate-600"
               }`}
               key={t}
             >
-              {t}
+              {unavailable ? `${t} full` : t}
+            </button>
+            )
+          })}
+        </div>
+        <h2 className="section-title mt-7">Visit type</h2>
+        <div className="mt-3 flex gap-2">
+          {(["once", "weekly"] as const).map((item) => (
+            <button
+              key={item}
+              className={`chip ${demo.schedule.visitType === item ? "selected" : ""}`}
+              onClick={() => demo.patchSchedule({ visitType: item })}
+            >
+              {item === "once" ? "One time" : "Every week"}
             </button>
           ))}
         </div>
+        <label className="form-label mt-6">
+          Notes for the partner
+          <textarea
+            value={demo.schedule.notes}
+            onChange={(event) => demo.patchSchedule({ notes: event.target.value })}
+            className="form-input h-20 py-3"
+            placeholder="Gate code, pets, or what to focus on"
+          />
+        </label>
         <h2 className="section-title mt-7">Service address</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
-          {[
-            ["Home", "12, 4th Cross"],
-            ["Office", "80 Feet Road"],
-          ].map(([label, line]) => (
+          {demo.addresses.map((item) => {
+            const label = item.label
+            const line = item.line
+            return (
             <button
               onClick={() => demo.patchSchedule({ address: label })}
               key={label}
@@ -292,15 +368,35 @@ export function Booking({ screen }: { screen: Screen }) {
                 <small className="text-slate-500">{line}</small>
               </span>
             </button>
-          ))}
+            )
+          })}
         </div>
+        {demo.provider.onLeave && (
+          <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            The partner is on leave, so new slots stay closed until they return.
+          </p>
+        )}
+        {blocked && (
+          <p className="mt-4 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+            This number is blocked. Contact Homify support.
+          </p>
+        )}
+        {!served && (
+          <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            Bookings are open in Rasayani. Change location to continue.
+          </p>
+        )}
       </main>
       <div className="sticky-bar">
         <div>
           <p className="text-xs text-slate-400">Total</p>
           <p className="font-extrabold">{total}</p>
         </div>
-        <button className="primary-btn w-48" onClick={() => go("payment")}>
+        <button
+          className="primary-btn w-48 disabled:opacity-40"
+          disabled={!served || blocked || demo.provider.onLeave}
+          onClick={() => go("payment")}
+        >
           Continue
         </button>
       </div>

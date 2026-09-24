@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { MapPin, Navigation } from "lucide-react"
 import { Header } from "@/components/AppChrome"
-import { cities } from "@/data/market"
+import { cities, servedCity } from "@/data/market"
 import { useContinue, useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
 
@@ -11,7 +11,7 @@ export function LocationPage() {
   const demo = useDemo()
   const go = useGo()
   const onDone = useContinue()
-  const [city, setCity] = useState(demo.city || "Bengaluru")
+  const [city, setCity] = useState(demo.city || servedCity)
   const [area, setArea] = useState(demo.area)
   const areas = cities.find((item) => item.city === city)?.areas ?? []
 
@@ -30,13 +30,18 @@ export function LocationPage() {
         </h1>
         <button
           className="primary-btn mt-6 w-full"
-          onClick={() => save("Bengaluru", "Koramangala")}
+          onClick={() => save(servedCity, "Mohpada")}
         >
           <Navigation size={18} /> Use current location
         </button>
         <p className="mt-3 text-center text-xs text-slate-400">
-          Demo location: Koramangala, Bengaluru
+          Detected pin: Mohpada, Rasayani · 18.89, 73.18
         </p>
+        {city !== servedCity && (
+          <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            Phase 1 visits are available in Rasayani only. Pick Rasayani to book.
+          </p>
+        )}
         <h2 className="section-title mt-8">Or pick a city</h2>
         <div className="mt-4 flex flex-wrap gap-2">
           {cities.map((item) => (

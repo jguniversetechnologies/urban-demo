@@ -3,7 +3,13 @@ import type { ServiceItem } from "@/types/navigation"
 export const platformFee = 49
 export const startOtp = "7291"
 
+export const servedCity = "Rasayani"
+
 export const cities = [
+  {
+    city: "Rasayani",
+    areas: ["Rasayani", "Mohpada", "Apte"],
+  },
   {
     city: "Bengaluru",
     areas: ["Koramangala", "Indiranagar", "HSR Layout", "Whitefield"],

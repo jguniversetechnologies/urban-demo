@@ -33,7 +33,7 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
   const suspended = provider.name !== "" && demo.suspended.includes(provider.name)
   const live = demo.booking
   const online = provider.online
-  const canWork = provider.kyc === "approved" && !suspended
+  const canWork = provider.kyc === "approved" && provider.trainingDone && !provider.onLeave && !suspended
   const setOnline = (next: boolean) => demo.setProviderOnline(next)
   const tabs = [
     ["provider", LayoutDashboard, "Home"],
@@ -70,6 +70,7 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
             <p className="mt-2 text-xs text-slate-500">
               {live.customerName} · {live.customerPhone ? `+91 ${live.customerPhone}` : "Customer"} · {live.address} · {live.time}
             </p>
+            {live.notes && <p className="mt-2 text-xs text-slate-600">Note: {live.notes}</p>}
             <div className="mt-4 flex gap-2">
               <button
                 onClick={demo.declineJob}
@@ -114,6 +115,10 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
             <MapPin size={14} />
             {live.address}
           </p>
+          {live.notes && <p className="mt-2 text-xs text-slate-300">Note: {live.notes}</p>}
+          <a className="mt-3 inline-block text-xs font-bold text-teal-200" href={`tel:+91${live.customerPhone || ""}`}>
+            Call customer
+          </a>
         </div>
         {live.status === "accepted" && (
           <button
@@ -176,6 +181,19 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
                 )
               })}
             </div>
+            <h2 className="section-title mt-6">Proof of work</h2>
+            <label className="mt-3 flex cursor-pointer items-center justify-between rounded-2xl border border-dashed border-slate-300 px-4 py-3 text-sm">
+              <span>{live.proofPhotos?.length ? live.proofPhotos.join(", ") : "Add before and after photos"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) demo.addProofPhoto(file.name)
+                }}
+              />
+            </label>
             <button
               onClick={() => demo.setJobStatus("completed")}
               className="primary-btn mt-5 w-full"
@@ -189,8 +207,16 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
             <BadgeCheck className="mx-auto" />
             <b className="mt-2 block">Job completed</b>
             <p className="mt-1 text-xs">
-              {formatRupees(demo.orderTotal(live))} added to today&apos;s jobs
+              Invoice {live.id} · {formatRupees(demo.orderTotal(live))} · {live.paymentStatus}
             </p>
+            <div className="mt-4 flex justify-center gap-1">
+              {[1, 2, 3, 4, 5].map((score) => (
+                <button key={score} className="text-lg" onClick={() => demo.rateCustomer(score)}>
+                  {score <= (provider.customerScore || 0) ? "★" : "☆"}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs">Rate this customer</p>
           </div>
         )}
       </>
@@ -207,29 +233,27 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
         <h1 className="text-2xl font-extrabold">Earnings</h1>
         <div className="mt-6 rounded-3xl bg-teal-700 p-6 text-white">
           <p className="text-xs text-teal-100">Total earnings this month</p>
-          <p className="mt-2 text-4xl font-extrabold">₹24,850</p>
+          <p className="mt-2 text-4xl font-extrabold">₹{provider.earned.toLocaleString("en-IN")}</p>
           <div className="mt-5 border-t border-white/15 pt-4 text-xs">
-            Next payout · Friday, 24 May
+            Pending payout · {formatRupees(provider.earned)} · bank {provider.accountNo || "not added"}
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="stat-card">
-            <small>Platform dues</small>
-            <b>₹1,240</b>
+            <small>Platform fee kept</small>
+            <b>₹49 / visit</b>
           </div>
           <div className="stat-card">
             <small>Jobs done</small>
-            <b>38</b>
+            <b>{demo.history.length}</b>
           </div>
         </div>
-        <h2 className="section-title mt-7">Payout history</h2>
-        {["17 May", "10 May", "03 May"].map((x, i) => (
-          <div
-            key={x}
-            className="flex justify-between border-b border-slate-100 py-4 text-sm"
-          >
-            <span className="text-slate-500">{x}</span>
-            <b>₹{[5820, 4960, 6310][i]}</b>
+        <h2 className="section-title mt-7">Completed visits</h2>
+        {demo.history.length === 0 && <p className="mt-3 text-sm text-slate-500">Finished jobs show here.</p>}
+        {demo.history.map((item) => (
+          <div key={item.id} className="flex justify-between border-b border-slate-100 py-4 text-sm">
+            <span className="text-slate-500">{item.name}<br />{item.when}</span>
+            <b>{item.price}</b>
           </div>
         ))}
       </>
@@ -303,6 +327,19 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
             )
           },
         )}
+        <h2 className="section-title mt-7">Bank account</h2>
+        <input value={provider.bankName} onChange={(event) => demo.setProviderBank({ bankName: event.target.value })} className="form-input" placeholder="Account holder" />
+        <input value={provider.ifsc} onChange={(event) => demo.setProviderBank({ ifsc: event.target.value.toUpperCase() })} className="form-input" placeholder="IFSC" />
+        <input value={provider.accountNo} onChange={(event) => demo.setProviderBank({ accountNo: event.target.value })} className="form-input" placeholder="Account number" />
+        <input value={provider.emergency} onChange={(event) => demo.setProviderBank({ emergency: event.target.value })} className="form-input" placeholder="Emergency contact" />
+        <h2 className="section-title mt-7">Training</h2>
+        <p className="mt-2 text-xs text-slate-500">Safety, service steps, and how to speak with the customer.</p>
+        <button
+          className="secondary-btn mt-3 h-10 w-full text-xs"
+          onClick={demo.completeTraining}
+        >
+          {provider.trainingDone ? "Training complete" : "Mark training complete"}
+        </button>
         {Object.keys(provider.documents).length === 3 && provider.kyc !== "approved" && (
           <button className="primary-btn mt-6 w-full" onClick={demo.submitProviderKyc}>
             Submit for verification
@@ -368,12 +405,25 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
                 ? online
                   ? "The customer's booking shows up here"
                   : "Go online to receive the request"
-                : "Finish KYC before you can go online"}
+                : provider.kyc !== "approved"
+                  ? "Finish KYC before you can go online"
+                  : !provider.trainingDone
+                    ? "Finish training before you can go online"
+                    : "Leave is on, so new jobs are paused"}
             </small>
           </span>
           <ChevronRight size={18} />
         </button>
-        <h2 className="section-title mt-7">Today's schedule</h2>
+        <div className="mt-4 flex gap-2">
+          <button className="secondary-btn h-10 flex-1 text-xs" onClick={() => demo.setProviderLeave(!provider.onLeave)}>
+            {provider.onLeave ? "End leave" : "Mark leave"}
+          </button>
+          <button className="secondary-btn h-10 flex-1 text-xs" onClick={() => demo.raiseSos("Need help on a visit")}>
+            SOS
+          </button>
+        </div>
+        {provider.sosNote && <p className="mt-2 text-xs font-semibold text-rose-600">SOS sent: {provider.sosNote}</p>}
+        <h2 className="section-title mt-7">Today&apos;s schedule</h2>
         {live ? (
           <div className="mt-4 rounded-2xl border border-slate-100 p-4">
             <p className="text-xs font-bold text-teal-700">{live.time}</p>

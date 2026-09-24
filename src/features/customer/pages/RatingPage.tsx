@@ -10,7 +10,10 @@ export function Rating() {
   const go = useGo()
   const demo = useDemo()
   const [rated, setRated] = useState(5)
+  const [note, setNote] = useState("")
+  const [chip, setChip] = useState("")
   const [sent, setSent] = useState(false)
+  const chips = ["On time", "Polite", "Missed a spot", "Brought the right tools"]
   const partner = demo.provider.name || "your partner"
   if (sent) {
     return (
@@ -50,12 +53,25 @@ export function Rating() {
             </button>
           ))}
         </div>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          {chips.map((item) => (
+            <button
+              key={item}
+              className={`chip ${chip === item ? "selected" : ""}`}
+              onClick={() => setChip(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
         <textarea
-          className="mt-8 h-28 w-full resize-none rounded-2xl border border-slate-200 p-4 text-sm outline-none focus:border-teal-600"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          className="mt-6 h-28 w-full resize-none rounded-2xl border border-slate-200 p-4 text-sm outline-none focus:border-teal-600"
           placeholder="Tell us what you loved..."
         />
         <button className="primary-btn mt-6 w-full" onClick={() => {
-          demo.setCustomerRating(rated)
+          demo.saveReview(rated, [chip, note].filter(Boolean).join(". "))
           setSent(true)
         }}>
           Submit review

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Check, Phone, Star } from "lucide-react"
 import { BottomNav, Header } from "@/components/AppChrome"
 import { formatRupees } from "@/data/market"
@@ -8,7 +9,7 @@ import { useDemo, type JobStatus } from "@/state/DemoState"
 
 const steps: { status: JobStatus; label: string }[] = [
   { status: "requested", label: "Requested" },
-  { status: "accepted", label: "Accepted by Ravi" },
+  { status: "accepted", label: "Accepted" },
   { status: "on_the_way", label: "On the way" },
   { status: "started", label: "In progress" },
   { status: "completed", label: "Completed" },
@@ -18,7 +19,10 @@ export function Tracking() {
   const go = useGo()
   const demo = useDemo()
   const booking = demo.booking
+  const [reason, setReason] = useState("")
+  const [nextTime, setNextTime] = useState("11:30 AM")
   const current = steps.findIndex((step) => step.status === booking?.status)
+  const partner = demo.provider.name || "Your partner"
 
   return (
     <div className="screen">
@@ -26,9 +30,9 @@ export function Tracking() {
         title="Track booking"
         onBack={() => go("home")}
         action={
-          <button className="icon-btn" aria-label="Call professional">
+          <a className="icon-btn" aria-label="Call professional" href={`tel:+91${demo.provider.phone || "18002024455"}`}>
             <Phone size={18} />
-          </button>
+          </a>
         }
       />
       <main className="flex-1 overflow-y-auto px-5 pb-28 pt-6">
@@ -52,14 +56,14 @@ export function Tracking() {
                     {current >= 1 ? "Professional" : "Finding a professional"}
                   </p>
                   <h3 className="mt-1 font-bold">
-                    {current >= 1 ? "Ravi Kumar" : "Waiting for acceptance"}
+                    {current >= 1 ? partner : "Waiting for acceptance"}
                   </h3>
                   <p className="mt-1 flex items-center gap-1 text-xs text-amber-300">
                     <Star size={11} fill="currentColor" /> {booking.serviceName}
                   </p>
                 </div>
                 <div className="grid h-12 w-12 place-items-center rounded-full bg-teal-600 font-bold">
-                  RK
+                  {partner.slice(0, 2).toUpperCase()}
                 </div>
               </div>
               <p className="mt-4 text-xs text-slate-300">
@@ -67,6 +71,54 @@ export function Tracking() {
                 {formatRupees(demo.orderTotal(booking))}
               </p>
             </div>
+            {booking.notes && (
+              <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                Note: {booking.notes}
+                {booking.visitType === "weekly" ? " · Repeats every week" : ""}
+              </p>
+            )}
+            {booking.status === "on_the_way" && (
+              <p className="mt-4 rounded-2xl bg-teal-50 px-4 py-3 text-xs font-semibold text-teal-800">
+                {partner} is about 25 minutes away. Verified partner.
+              </p>
+            )}
+            {(booking.status === "requested" || booking.status === "accepted") && (
+              <div className="mt-4 rounded-2xl border border-slate-100 p-4">
+                <b className="text-sm">Change this visit</b>
+                <div className="mt-3 flex gap-2">
+                  {["11:30 AM", "3:30 PM", "5:00 PM"].map((slot) => (
+                    <button
+                      key={slot}
+                      className={`chip ${nextTime === slot ? "selected" : ""}`}
+                      onClick={() => setNextTime(slot)}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="secondary-btn mt-3 h-10 w-full text-xs"
+                  onClick={() => demo.rescheduleBooking(booking.dateLabel, nextTime)}
+                >
+                  Reschedule to {nextTime}
+                </button>
+                <input
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  className="form-input"
+                  placeholder="Reason to cancel"
+                />
+                <button
+                  className="mt-2 text-xs font-bold text-rose-600"
+                  onClick={() => demo.cancelBooking(reason || "Plans changed")}
+                >
+                  Cancel booking
+                </button>
+                <p className="mt-2 text-[11px] leading-4 text-slate-400">
+                  Free cancel before the partner starts. A paid visit returns ₹100 as wallet credit.
+                </p>
+              </div>
+            )}
             {(booking.status === "accepted" || booking.status === "on_the_way") && (
               <div className="mt-4 rounded-2xl bg-teal-50 p-4 text-center">
                 <p className="text-xs font-bold text-teal-800">
@@ -128,12 +180,21 @@ export function Tracking() {
               </div>
             )}
             {booking.status === "completed" && (
-              <button
-                onClick={() => go("rating")}
-                className="primary-btn mt-5 w-full"
-              >
-                Rate this visit
-              </button>
+              <>
+                <p className="mt-4 text-xs text-slate-500">30-day service cover applies to this visit.</p>
+                <button
+                  onClick={() => go("rating")}
+                  className="primary-btn mt-5 w-full"
+                >
+                  Rate this visit
+                </button>
+                <button
+                  className="secondary-btn mt-3 h-10 w-full text-xs"
+                  onClick={() => demo.raiseTicket("customer", "Warranty revisit", booking.serviceName)}
+                >
+                  Ask for a warranty revisit
+                </button>
+              </>
             )}
           </>
         )}

@@ -43,6 +43,12 @@ export type LiveBooking = {
   customerPhone: string
   discount: number
   coupon: string
+  notes: string
+  visitType: "once" | "weekly"
+  paymentStatus: "pending" | "paid" | "failed" | "cash"
+  walletUsed: number
+  reviewNote: string
+  proofPhotos: string[]
 }
 
 export type KycStatus = "none" | "pending" | "approved" | "rejected"
@@ -58,6 +64,14 @@ export type ProviderAccount = {
   token: string
   online: boolean
   earned: number
+  bankName: string
+  ifsc: string
+  accountNo: string
+  emergency: string
+  trainingDone: boolean
+  onLeave: boolean
+  sosNote: string
+  customerScore: number | null
 }
 
 export type AppNotice = {
@@ -83,7 +97,21 @@ export type RosterPartner = {
   review: RosterReview
 }
 
-export type SavedAddress = { label: string; line: string }
+export type SavedAddress = {
+  label: string
+  line: string
+  kind?: "Home" | "Work" | "Other"
+  landmark?: string
+}
+
+export type SupportTicket = {
+  id: string
+  from: "customer" | "provider"
+  topic: string
+  detail: string
+  status: "open" | "resolved"
+  photo: string
+}
 export type SavedCard = { label: string; detail: string }
 export type PastBooking = { id: string; name: string; when: string; price: string }
 
@@ -96,6 +124,10 @@ type PlaceBookingInput = {
   time: string
   address: string
   payment: "online" | "cash"
+  notes?: string
+  visitType?: "once" | "weekly"
+  paymentStatus?: LiveBooking["paymentStatus"]
+  walletUsed?: number
 }
 
 export type ScheduleDraft = {
@@ -103,6 +135,9 @@ export type ScheduleDraft = {
   time: string
   address: string
   payment: "online" | "cash"
+  notes: string
+  visitType: "once" | "weekly"
+  useWallet: boolean
 }
 
 type AuthDraft = {
@@ -128,6 +163,12 @@ type Persisted = {
   notices: AppNotice[]
   coupons: Coupon[]
   couponCode: string
+  wallet: number
+  favorites: string[]
+  tickets: SupportTicket[]
+  reviewNote: string
+  blockedPhones: string[]
+  audit: string[]
   provider: ProviderAccount
   roster: RosterPartner[]
   extraCategories: string[]
@@ -150,6 +191,7 @@ type DemoValue = Persisted & {
   signInCustomer: (phone: string) => void
   signInProvider: (phone: string) => void
   signOutCustomer: () => void
+  deleteCustomer: () => void
   signOutProvider: () => void
   setCustomerProfile: (patch: { name?: string; email?: string }) => void
   setProviderProfile: (patch: Partial<Pick<ProviderAccount, "name" | "city" | "skill">>) => void
@@ -162,7 +204,23 @@ type DemoValue = Persisted & {
   applyCoupon: (code: string) => boolean
   clearCoupon: () => void
   toggleCoupon: (code: string) => void
-  addAddress: (label: string, line: string) => void
+  addAddress: (label: string, line: string, landmark?: string) => void
+  removeAddress: (label: string) => void
+  cancelBooking: (reason: string) => void
+  rescheduleBooking: (dateLabel: string, time: string) => void
+  saveReview: (rating: number, note: string) => void
+  raiseTicket: (from: SupportTicket["from"], topic: string, detail: string, photo?: string) => void
+  setTicketStatus: (id: string, status: SupportTicket["status"]) => void
+  toggleFavorite: (name: string) => void
+  setProviderBank: (patch: Partial<Pick<ProviderAccount, "bankName" | "ifsc" | "accountNo" | "emergency">>) => void
+  completeTraining: () => void
+  setProviderLeave: (onLeave: boolean) => void
+  addProofPhoto: (name: string) => void
+  rateCustomer: (score: number) => void
+  raiseSos: (note: string) => void
+  createCoupon: (code: string, off: number, label: string) => void
+  blockCustomer: (phone: string) => void
+  areaServed: (city: string) => boolean
   addCard: () => void
   setCustomerRating: (rating: number) => void
   setLocation: (city: string, area: string) => void
@@ -206,6 +264,14 @@ const emptyProvider: ProviderAccount = {
   token: "",
   online: false,
   earned: 0,
+  bankName: "",
+  ifsc: "",
+  accountNo: "",
+  emergency: "",
+  trainingDone: false,
+  onLeave: false,
+  sosNote: "",
+  customerScore: null,
 }
 
 const initialPersisted: Persisted = {
@@ -231,6 +297,12 @@ const initialPersisted: Persisted = {
     { code: "WELCOME50", off: 50, label: "₹50 off your first booking", active: true },
   ],
   couponCode: "",
+  wallet: 150,
+  favorites: [],
+  tickets: [],
+  reviewNote: "",
+  blockedPhones: [],
+  audit: [],
   provider: emptyProvider,
   roster: starterRoster,
   extraCategories: [],
@@ -246,6 +318,9 @@ const initialPersisted: Persisted = {
     time: "10:00 AM",
     address: "Home",
     payment: "online",
+    notes: "",
+    visitType: "once",
+    useWallet: false,
   },
   adminAuthenticated: false,
   adminCity: "Bengaluru",
@@ -418,6 +493,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
                         customerPhone: active.customerPhone,
                         discount: active.discount,
                         coupon: active.coupon,
+                        notes: "",
+                        visitType: "once",
+                        paymentStatus: active.payment === "cash" ? "cash" : "paid",
+                        walletUsed: 0,
+                        reviewNote: "",
+                        proofPhotos: [],
                       }
                     : null),
                 history: [
@@ -465,6 +546,18 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           }
         }),
       signOutCustomer: () => patch({ customerAuthed: false }),
+      deleteCustomer: () =>
+        setData((current) => ({
+          ...current,
+          customerAuthed: false,
+          customerName: "",
+          customerEmail: "",
+          customerPhone: "",
+          customerToken: "",
+          favorites: [],
+          wallet: 0,
+          booking: null,
+        })),
       signOutProvider: () =>
         setData((current) => ({
           ...current,
@@ -541,6 +634,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         setData((current) => {
           const blocked =
             current.provider.kyc !== "approved" ||
+            !current.provider.trainingDone ||
+            current.provider.onLeave ||
             current.suspended.includes(current.provider.name)
           if (online && blocked) return current
           return { ...current, provider: { ...current.provider, online } }
@@ -566,11 +661,176 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               ? ""
               : current.couponCode,
         })),
-      addAddress: (label, line) =>
+      addAddress: (label, line, landmark = "") =>
         setData((current) => ({
           ...current,
-          addresses: [...current.addresses, { label, line }],
+          addresses: [
+            ...current.addresses.filter((item) => item.label !== label),
+            { label, line, landmark, kind: label === "Work" ? "Work" : label === "Home" ? "Home" : "Other" },
+          ],
         })),
+      removeAddress: (label) =>
+        setData((current) => ({
+          ...current,
+          addresses: current.addresses.filter((item) => item.label !== label),
+        })),
+      cancelBooking: (reason) =>
+        setData((current) => {
+          const booking = current.booking
+          if (!booking || booking.status === "started" || booking.status === "completed") {
+            return current
+          }
+          const refund = booking.paymentStatus === "paid" ? booking.walletUsed + booking.discount : booking.walletUsed
+          return {
+            ...current,
+            booking: null,
+            wallet: current.wallet + booking.walletUsed + (booking.paymentStatus === "paid" ? Math.min(booking.basePrice, 100) : 0),
+            history: [
+              {
+                id: booking.id,
+                name: booking.serviceName,
+                when: `${booking.dateLabel} · Cancelled · ${reason}`,
+                price: `₹${booking.basePrice}`,
+              },
+              ...current.history.filter((item) => item.id !== booking.id),
+            ],
+            notices: addNotice(
+              current.notices,
+              "customer",
+              "Booking cancelled",
+              refund ? `${reason}. A credit was added to your wallet.` : reason,
+            ),
+            audit: [`Cancelled ${booking.id}: ${reason}`, ...current.audit].slice(0, 30),
+          }
+        }),
+      rescheduleBooking: (dateLabel, time) =>
+        setData((current) => {
+          if (!current.booking || current.booking.status === "completed") return current
+          const booking = { ...current.booking, dateLabel, time }
+          queueMicrotask(() => rememberBooking(booking, current.provider.phone))
+          return {
+            ...current,
+            booking,
+            notices: addNotice(
+              current.notices,
+              "provider",
+              "Visit rescheduled",
+              `${booking.serviceName} moved to ${dateLabel} at ${time}.`,
+            ),
+          }
+        }),
+      saveReview: (customerRating, reviewNote) =>
+        patch({ customerRating, reviewNote }),
+      raiseTicket: (from, topic, detail, photo = "") =>
+        setData((current) => ({
+          ...current,
+          tickets: [
+            {
+              id: `T${Date.now().toString().slice(-5)}`,
+              from,
+              topic,
+              detail,
+              status: "open",
+              photo,
+            },
+            ...current.tickets,
+          ],
+          notices: addNotice(
+            current.notices,
+            from,
+            "Support request sent",
+            topic,
+          ),
+        })),
+      setTicketStatus: (id, status) =>
+        setData((current) => ({
+          ...current,
+          tickets: current.tickets.map((item) =>
+            item.id === id ? { ...item, status } : item,
+          ),
+        })),
+      toggleFavorite: (name) =>
+        setData((current) => ({
+          ...current,
+          favorites: current.favorites.includes(name)
+            ? current.favorites.filter((item) => item !== name)
+            : [...current.favorites, name],
+        })),
+      setProviderBank: (bankPatch) =>
+        setData((current) => ({
+          ...current,
+          provider: { ...current.provider, ...bankPatch },
+        })),
+      completeTraining: () =>
+        setData((current) => ({
+          ...current,
+          provider: { ...current.provider, trainingDone: true },
+          notices: addNotice(
+            current.notices,
+            "provider",
+            "Training complete",
+            "Safety and service steps are marked done.",
+          ),
+        })),
+      setProviderLeave: (onLeave) =>
+        setData((current) => ({
+          ...current,
+          provider: {
+            ...current.provider,
+            onLeave,
+            online: onLeave ? false : current.provider.online,
+          },
+        })),
+      addProofPhoto: (name) =>
+        setData((current) => {
+          if (!current.booking) return current
+          return {
+            ...current,
+            booking: {
+              ...current.booking,
+              proofPhotos: [...(current.booking.proofPhotos || []), name],
+            },
+          }
+        }),
+      rateCustomer: (customerScore) =>
+        setData((current) => ({
+          ...current,
+          provider: { ...current.provider, customerScore },
+        })),
+      raiseSos: (sosNote) =>
+        setData((current) => ({
+          ...current,
+          provider: { ...current.provider, sosNote },
+          notices: addNotice(
+            current.notices,
+            "provider",
+            "SOS sent",
+            sosNote || "Homify support has this alert.",
+          ),
+          audit: [`SOS from ${current.provider.name || "partner"}`, ...current.audit].slice(0, 30),
+        })),
+      createCoupon: (code, off, label) =>
+        setData((current) => {
+          const clean = code.trim().toUpperCase()
+          if (!clean || off <= 0) return current
+          const next = current.coupons.filter((item) => item.code !== clean)
+          return {
+            ...current,
+            coupons: [...next, { code: clean, off, label: label || `₹${off} off`, active: true }],
+          }
+        }),
+      blockCustomer: (phone) =>
+        setData((current) => ({
+          ...current,
+          blockedPhones: current.blockedPhones.includes(phone)
+            ? current.blockedPhones.filter((item) => item !== phone)
+            : [...current.blockedPhones, phone],
+          audit: [
+            `${current.blockedPhones.includes(phone) ? "Unblocked" : "Blocked"} ${phone}`,
+            ...current.audit,
+          ].slice(0, 30),
+        })),
+      areaServed: (city) => city === "Rasayani",
       addCard: () =>
         setData((current) => ({
           ...current,
@@ -589,9 +849,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       setPackageChoice: (packageChoice) => patch({ packageChoice }),
       placeBooking: (input) =>
         setData((current) => {
+          if (current.blockedPhones.includes(current.customerPhone)) return current
           const coupon = current.coupons.find(
             (item) => item.active && item.code === current.couponCode,
           )
+          const walletUsed = input.walletUsed ?? 0
           const booking: LiveBooking = {
             ...input,
             id: `HM${Date.now().toString().slice(-6)}`,
@@ -602,11 +864,20 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             customerPhone: current.customerPhone,
             discount: coupon?.off ?? 0,
             coupon: coupon?.code ?? "",
+            notes: input.notes ?? "",
+            visitType: input.visitType ?? "once",
+            paymentStatus:
+              input.paymentStatus ??
+              (input.payment === "cash" ? "cash" : "pending"),
+            walletUsed,
+            reviewNote: "",
+            proofPhotos: [],
           }
           queueMicrotask(() => rememberBooking(booking, current.provider.phone))
           return {
             ...current,
             booking,
+            wallet: Math.max(0, current.wallet - walletUsed),
             notices: addNotice(
               current.notices,
               "customer",
@@ -735,7 +1006,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       orderTotal: (current) =>
         Math.max(
           0,
-          bookingTotal(current.basePrice, current.extras) - (current.discount || 0),
+          bookingTotal(current.basePrice, current.extras) -
+            (current.discount || 0) -
+            (current.walletUsed || 0),
         ),
       setRole: (role) => patch({ role }),
       setPendingPath: (pendingPath) =>

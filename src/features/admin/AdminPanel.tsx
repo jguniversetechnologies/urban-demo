@@ -148,6 +148,8 @@ export default function AdminPanel() {
   const [notice, setNotice] = useState("")
   const [bookingFilter, setBookingFilter] = useState("all")
   const [categoryName, setCategoryName] = useState("")
+  const [couponCode, setCouponCode] = useState("")
+  const [couponOff, setCouponOff] = useState("100")
   const [reminded, setReminded] = useState<string[]>([])
   const adminCity = demo.adminCity
   const setAdminCity = demo.setAdminCity
@@ -157,6 +159,9 @@ export default function AdminPanel() {
     ["Providers", Users],
     ["Services", Store],
     ["Bookings", CalendarDays],
+    ["Customers", Users],
+    ["Payments", CircleDollarSign],
+    ["Support", Bell],
     ["Commission", CircleDollarSign],
   ]
   if (!demo.adminAuthenticated)
@@ -383,6 +388,19 @@ export default function AdminPanel() {
           ))}
         </div>
         <h3 className="section-title mt-8">Coupons</h3>
+        <form
+          className="admin-actions mt-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            demo.createCoupon(couponCode, Number(couponOff), `${couponCode.toUpperCase()} offer`)
+            setCouponCode("")
+            action("Coupon is active for customers")
+          }}
+        >
+          <input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} className="form-input mt-0 h-10 min-w-0 flex-1" placeholder="CODE" />
+          <input value={couponOff} onChange={(event) => setCouponOff(event.target.value.replace(/\D/g, ""))} className="form-input mt-0 h-10 w-24" placeholder="100" />
+          <button className="primary-btn h-10 px-4" type="submit">Add coupon</button>
+        </form>
         <p className="mt-1 text-xs text-slate-400">
           Only active coupons appear in the customer payment list.
         </p>
@@ -472,6 +490,76 @@ export default function AdminPanel() {
             </tbody>
           </table>
         </div>
+      </section>
+    ) : page === "Customers" ? (
+      <section className="admin-card mt-7">
+        <h2 className="section-title">Customers</h2>
+        {demo.customerPhone ? (
+          <div className="admin-list-row">
+            <div className="admin-person">
+              <div className="admin-avatar">{(demo.customerName || "C").slice(0, 2).toUpperCase()}</div>
+              <div>
+                <b>{demo.customerName || "Customer"}</b>
+                <p>+91 {demo.customerPhone} · {demo.city || "No city"} · wallet ₹{demo.wallet}</p>
+                <p>{demo.history.length} past visits · rating {demo.customerRating ?? "—"}</p>
+              </div>
+            </div>
+            <button className="reject-btn" onClick={() => demo.blockCustomer(demo.customerPhone)}>
+              {demo.blockedPhones.includes(demo.customerPhone) ? "Unblock" : "Block"}
+            </button>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-500">A customer appears here after they sign in.</p>
+        )}
+      </section>
+    ) : page === "Payments" ? (
+      <section className="admin-card mt-7">
+        <h2 className="section-title">Payments</h2>
+        {!demo.booking && demo.history.length === 0 && (
+          <p className="mt-4 text-sm text-slate-500">Payments show up when a customer books.</p>
+        )}
+        {demo.booking && (
+          <div className="admin-list-row">
+            <div className="min-w-0 flex-1">
+              <b>{demo.booking.id}</b>
+              <p>{demo.booking.serviceName} · {demo.booking.payment} · {demo.booking.paymentStatus}</p>
+            </div>
+            <b>₹{demo.orderTotal(demo.booking)}</b>
+          </div>
+        )}
+        {demo.history.map((item) => (
+          <div className="admin-list-row" key={item.id}>
+            <div className="min-w-0 flex-1">
+              <b>{item.id}</b>
+              <p>{item.name} · {item.when}</p>
+            </div>
+            <b>{item.price}</b>
+          </div>
+        ))}
+      </section>
+    ) : page === "Support" ? (
+      <section className="admin-card mt-7">
+        <h2 className="section-title">Support tickets</h2>
+        {demo.tickets.length === 0 && <p className="mt-4 text-sm text-slate-500">No open requests.</p>}
+        {demo.tickets.map((ticket) => (
+          <div className="admin-list-row" key={ticket.id}>
+            <div className="min-w-0 flex-1">
+              <b>{ticket.topic}</b>
+              <p>{ticket.from} · {ticket.detail} {ticket.photo ? `· ${ticket.photo}` : ""}</p>
+            </div>
+            <button className="approve-btn" onClick={() => demo.setTicketStatus(ticket.id, ticket.status === "open" ? "resolved" : "open")}>
+              {ticket.status}
+            </button>
+          </div>
+        ))}
+        {demo.audit.length > 0 && (
+          <>
+            <h3 className="section-title mt-6">Recent admin actions</h3>
+            {demo.audit.map((line) => (
+              <p key={line} className="mt-2 text-xs text-slate-500">{line}</p>
+            ))}
+          </>
+        )}
       </section>
     ) : page === "Commission" ? (
       <>
