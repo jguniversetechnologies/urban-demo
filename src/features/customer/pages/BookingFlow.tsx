@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Banknote, Check, MapPin, WalletCards } from "lucide-react"
 import { Header } from "@/components/AppChrome"
-import { formatRupees, platformFee } from "@/data/market"
+import { formatRupees, platformFee, subscriptionPricing } from "@/data/market"
 import { categoryPath } from "@/lib/paths"
 import { useGo } from "@/navigation/useGo"
 import { useDemo } from "@/state/DemoState"
@@ -47,11 +47,11 @@ export function Booking({ screen }: { screen: Screen }) {
   const discount = activeCoupon?.off ?? 0
   const basePrice = demo.packageChoice?.price ?? 0
   const packageLabel = demo.packageChoice?.label ?? "Standard"
-  const subscriptionDiscount = demo.schedule.visitType === "weekly" ? 0.15 : demo.schedule.visitType === "monthly" ? 0.20 : 0
-  const subscriptionAmount = Math.round(basePrice * subscriptionDiscount)
-  const totalDiscount = discount + subscriptionAmount
+  const subscription = demo.schedule.visitType !== "once" ? subscriptionPricing(basePrice, demo.schedule.visitType as "daily" | "weekly" | "monthly") : null
+  const subscriptionDiscount = subscription?.discount ?? 0
+  const totalDiscount = discount + subscriptionDiscount
   const walletUsed = demo.schedule.useWallet ? Math.min(100, demo.wallet, Math.max(0, basePrice + platformFee - totalDiscount)) : 0
-  const previewTotal = Math.max(0, basePrice + platformFee - totalDiscount - walletUsed)
+  const previewTotal = subscription ? subscription.subscriptionPrice + platformFee - walletUsed : Math.max(0, basePrice + platformFee - totalDiscount - walletUsed)
   const served = !demo.city || demo.areaServed(demo.city)
   const blocked = demo.blockedPhones.includes(demo.customerPhone)
   const total = formatRupees(
@@ -141,20 +141,25 @@ export function Booking({ screen }: { screen: Screen }) {
         <Header title="Payment" onBack={() => go("booking")} />
         <main className="flex-1 px-5 pt-6">
           <div className="rounded-2xl bg-slate-900 p-5 text-white">
-            <p className="text-xs text-slate-400">Total payable</p>
+            <p className="text-xs text-slate-400">{subscription ? "Monthly subscription" : "Total payable"}</p>
             <p className="mt-1 text-3xl font-extrabold">{total}</p>
             <p className="mt-3 text-xs text-slate-300">
-              {service?.name} · {selectedDay.label}, {time}
-              {demo.schedule.visitType !== "once" && (
+              {service?.name} · {packageLabel}
+              {subscription && (
                 <span className="ml-2 text-teal-200">
-                  · {demo.schedule.visitType === "weekly" ? "Weekly" : "Monthly"} subscription
+                  · {subscription.visits} visits/month
                 </span>
               )}
             </p>
+            {subscription && (
+              <p className="mt-2 text-xs text-slate-300">
+                Per visit: ₹{subscription.perVisitPrice} · Billed monthly
+              </p>
+            )}
           </div>
-          {subscriptionAmount > 0 && (
+          {subscription && (
             <div className="mt-4 rounded-xl bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-800">
-              Subscription discount: ₹{subscriptionAmount} off
+              Save ₹{subscription.discount} vs one-time pricing · Provider guaranteed income
             </div>
           )}
           <h2 className="section-title mt-7">Coupon</h2>
@@ -341,19 +346,24 @@ export function Booking({ screen }: { screen: Screen }) {
         </div>
         <h2 className="section-title mt-7">Service frequency</h2>
         <div className="mt-3 flex gap-2">
-          {(["once", "weekly", "monthly"] as const).map((item) => (
+          {(["once", "daily", "weekly", "monthly"] as const).map((item) => (
             <button
               key={item}
               className={`chip ${demo.schedule.visitType === item ? "selected" : ""}`}
               onClick={() => demo.patchSchedule({ visitType: item })}
             >
-              {item === "once" ? "One-time" : item === "weekly" ? "Weekly" : "Monthly"}
+              {item === "once" ? "One-time" : item === "daily" ? "Daily" : item === "weekly" ? "Weekly" : "Monthly"}
             </button>
           ))}
         </div>
-        {demo.schedule.visitType !== "once" && (
+        {subscription && (
           <div className="mt-4 rounded-xl bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-800">
-            {demo.schedule.visitType === "weekly" ? "Weekly subscription · Save 15%" : "Monthly subscription · Save 20%"} · Auto-scheduled visits
+            {demo.schedule.visitType === "daily" ? "Daily subscription · 30 visits/month" : demo.schedule.visitType === "weekly" ? "Weekly subscription · 4 visits/month" : "Monthly subscription · 4 visits/month"} · Save ₹{subscription.discount}
+          </div>
+        )}
+        {subscription && (
+          <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            Provider gets guaranteed monthly income: ₹{subscription.subscriptionPrice}
           </div>
         )}
         {demo.schedule.visitType !== "once" && (

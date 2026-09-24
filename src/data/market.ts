@@ -79,34 +79,59 @@ export function formatRupees(amount: number) {
 
 export function packagesFor(service: ServiceItem): PackageChoice[] {
   const base = parseRupees(service.price)
-  if (/home|deep/i.test(service.name) && /clean/i.test(service.name)) {
+  if (/clean/i.test(service.name)) {
     return [
-      { id: "1bhk", label: "1 BHK", detail: "Up to 450 sq ft", price: base },
+      { id: "60min", label: "60 minutes", detail: "Quick clean", price: base },
       {
-        id: "2bhk",
-        label: "2 BHK",
-        detail: "Up to 800 sq ft",
-        price: base + 400,
+        id: "90min",
+        label: "90 minutes",
+        detail: "Thorough clean",
+        price: base + 200,
       },
       {
-        id: "3bhk",
-        label: "3 BHK",
-        detail: "Up to 1,200 sq ft",
-        price: base + 800,
+        id: "120min",
+        label: "120 minutes",
+        detail: "Deep clean",
+        price: base + 400,
       },
     ]
   }
   return [
-    { id: "standard", label: "Standard", detail: service.time, price: base },
+    { id: "60min", label: "60 minutes", detail: service.time, price: base },
     {
-      id: "plus",
-      label: "Plus",
-      detail: "Includes common spare parts",
-      price: base + 150,
+      id: "90min",
+      label: "90 minutes",
+      detail: "Extended service",
+      price: base + 200,
     },
   ]
 }
 
 export function bookingTotal(basePrice: number, extras: { price: number }[]) {
   return basePrice + platformFee + extras.reduce((sum, item) => sum + item.price, 0)
+}
+
+export function subscriptionPricing(basePrice: number, frequency: "daily" | "weekly" | "monthly") {
+  const visitCounts = {
+    daily: 30,
+    weekly: 4,
+    monthly: 4
+  }
+  const discounts = {
+    daily: 0.25,
+    weekly: 0.15,
+    monthly: 0.20
+  }
+  
+  const visits = visitCounts[frequency]
+  const discountRate = discounts[frequency]
+  const singleVisitPrice = basePrice * visits
+  const subscriptionPrice = Math.round(singleVisitPrice * (1 - discountRate))
+  
+  return {
+    visits,
+    subscriptionPrice,
+    perVisitPrice: Math.round(subscriptionPrice / visits),
+    discount: Math.round(singleVisitPrice - subscriptionPrice)
+  }
 }
