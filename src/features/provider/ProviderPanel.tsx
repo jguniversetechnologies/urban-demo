@@ -130,7 +130,15 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
         )}
         {live.status === "on_the_way" && (
           <div className="mt-6">
-            <label className="form-label">
+            <div className="rounded-2xl bg-teal-50 p-4 text-center">
+              <p className="text-xs font-bold text-teal-800">
+                Arrived at customer location
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Ask customer for the start code
+              </p>
+            </div>
+            <label className="form-label mt-4">
               Customer start code
               <input
                 value={startCode}
@@ -155,7 +163,7 @@ export default function ProviderPanel({ screen }: { screen: Screen }) {
                 }
               }}
             >
-              Start service
+              Verify & start service
             </button>
           </div>
         )}

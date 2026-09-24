@@ -57,9 +57,9 @@ export const rewardOffers = [
 ]
 
 export const materialExtras = [
-  { id: "cleaner", name: "Premium cleaner", price: 149 },
-  { id: "filter", name: "Spare filter", price: 299 },
-  { id: "sealant", name: "Sealant and fittings", price: 99 },
+  { id: "eco-cleaner", name: "Eco-friendly cleaner", price: 99 },
+  { id: "microfiber", name: "Premium microfiber cloths", price: 79 },
+  { id: "protectant", name: "Surface protectant", price: 149 },
 ]
 
 export type PackageChoice = {
